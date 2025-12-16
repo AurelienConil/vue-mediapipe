@@ -252,11 +252,16 @@ const toggleFinger = (finger: Finger) => {
 };
 
 const toggleFavorite = (featureKey: string) => {
-  if (favorites.value.has(featureKey)) {
+  const wasInFavorites = favorites.value.has(featureKey);
+
+  if (wasInFavorites) {
     favorites.value.delete(featureKey);
+    console.log("⭐ Retiré des favoris:", featureKey);
   } else {
     favorites.value.add(featureKey);
+    console.log("⭐ Ajouté aux favoris:", featureKey);
   }
+
   // Déclencher la réactivité
   favorites.value = new Set(favorites.value);
 
@@ -265,20 +270,23 @@ const toggleFavorite = (featureKey: string) => {
 };
 
 const saveFavorites = () => {
-  localStorage.setItem(
-    "featuresFavorites",
-    JSON.stringify(Array.from(favorites.value))
-  );
+  const favoritesArray = Array.from(favorites.value);
+  localStorage.setItem("featuresFavorites", JSON.stringify(favoritesArray));
+  console.log("💾 Favoris sauvegardés:", favoritesArray);
 };
 
 const loadFavorites = () => {
   try {
     const saved = localStorage.getItem("featuresFavorites");
     if (saved) {
-      favorites.value = new Set(JSON.parse(saved));
+      const parsedFavorites = JSON.parse(saved);
+      favorites.value = new Set(parsedFavorites);
+      console.log("📂 Favoris chargés:", parsedFavorites);
+    } else {
+      console.log("📂 Aucun favori sauvegardé trouvé");
     }
   } catch (error) {
-    console.warn("Erreur lors du chargement des favoris:", error);
+    console.warn("❌ Erreur lors du chargement des favoris:", error);
   }
 };
 
@@ -405,14 +413,12 @@ const getFeatureIcon = (feature: Feature): string => {
 
 // Update graph history and redraw
 const updateGraph = (key: string, feature: Feature) => {
-  //console.log(`🎯 UpdateGraph appelé pour ${key}:`, feature);
-
   if (feature.display !== "Graph" || typeof feature.value !== "number") {
-    // console.log(
-    //   `❌ Feature ${key} pas éligible:`,
-    //   feature.display,
-    //   typeof feature.value
-    // );
+    return;
+  }
+
+  // Vérifier que la feature est actuellement visible avant de dessiner
+  if (!filteredFeatures.value.has(key)) {
     return;
   }
 
@@ -427,9 +433,12 @@ const updateGraph = (key: string, feature: Feature) => {
 
   graphHistory.value.set(key, history);
 
-  // Redraw canvas
+  // Redraw canvas seulement si l'élément existe
   nextTick(() => {
-    drawGraph(key, history, feature.minMax);
+    const canvas = document.getElementById(`canvas_${key}`);
+    if (canvas) {
+      drawGraph(key, history, feature.minMax);
+    }
   });
 };
 
@@ -437,11 +446,9 @@ const updateGraph = (key: string, feature: Feature) => {
 const drawGraph = (key: string, data: number[], minMax: [number, number]) => {
   const canvas = document.getElementById(`canvas_${key}`) as HTMLCanvasElement;
   if (!canvas) {
-    console.warn(`❌ Canvas non trouvé pour key: ${key}`);
+    // Canvas pas trouvé - probablement filtré, pas d'erreur
     return;
   }
-
-  //console.log(`📊 Dessin du graphique pour ${key}, ${data.length} points`);
 
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -519,6 +526,9 @@ watch(
     // Réinitialiser l'historique des graphiques
     graphHistory.value.clear();
     console.log("Historique des graphiques réinitialisé");
+
+    // Recharger les favoris depuis localStorage
+    loadFavorites();
   }
 );
 
@@ -530,21 +540,17 @@ onMounted(() => {
   pollInterval = setInterval(() => {
     const newFeatures = props.featureStore.getAllFeatures();
 
-    // Check for updates and update graphs (seulement pour les features filtrées)
-    for (const [key, feature] of newFeatures) {
-      const oldFeature = features.value.get(key);
-      if (!oldFeature || oldFeature.timestamp !== feature.timestamp) {
-        // Vérifier si cette feature doit être affichée
-        const shouldShow =
-          !feature.finger || selectedFingers.value.has(feature.finger);
-        if (shouldShow) {
-          updateGraph(key, feature);
-        }
-      }
-    }
-
+    // Mettre à jour les features d'abord
     features.value = newFeatures;
     totalFeatures.value = newFeatures.size;
+
+    // Check for updates and update graphs (seulement pour les features actuellement affichées)
+    for (const [key, feature] of filteredFeatures.value) {
+      const oldFeature = features.value.get(key);
+      if (!oldFeature || oldFeature.timestamp !== feature.timestamp) {
+        updateGraph(key, feature);
+      }
+    }
   }, 16); // ~60fps
 });
 

@@ -36,9 +36,33 @@
             }}
           </v-chip>
 
+          <div class="d-flex align-center justify-center mb-2">
+            <v-btn
+              size="small"
+              variant="outlined"
+              @click="resetCameraView"
+              class="me-2"
+            >
+              <v-icon left size="small">mdi-refresh</v-icon>
+              Réinitialiser vue
+            </v-btn>
+
+            <v-chip
+              v-if="cameraPositionSaved"
+              color="success"
+              size="small"
+              class="fade-out"
+            >
+              <v-icon left size="small">mdi-content-save</v-icon>
+              Position sauvegardée
+            </v-chip>
+          </div>
+
           <p class="text-caption">
-            Cliquez et glissez pour faire tourner • Molette pour zoomer poignet=
-            {{ preprocessedLandmarks[0] }}
+            Cliquez et glissez pour faire tourner • Molette pour zoomer • Touche
+            'G' pour afficher/masquer la grille<br />
+            Position automatiquement sauvegardée en localStorage<br />
+            poignet= {{ preprocessedLandmarks[0] }}
           </p>
         </div>
       </div>
@@ -55,10 +79,12 @@ import p5 from "p5";
 const mediaPipeStore = useMediaPipeStore();
 const p5Container = ref<HTMLDivElement>();
 const hasPreprocessedData = ref(false);
+const cameraPositionSaved = ref(false);
 
 let p5Instance: p5 | null = null;
 let easycam: any = null;
 let preprocessedLandmarks: any[] = [];
+let resetCameraCallback: (() => void) | null = null;
 
 const { isDetecting } = storeToRefs(mediaPipeStore);
 
@@ -108,14 +134,64 @@ onUnmounted(() => {
   }
 });
 
+// Clé pour localStorage
+const CAMERA_STORAGE_KEY = "vue-mediapipe-3d-camera";
+
+// Fonction pour sauvegarder la position de la caméra
+const saveCameraPosition = (
+  rotationX: number,
+  rotationY: number,
+  zoomLevel: number,
+  showGrid: boolean
+) => {
+  const cameraData = { rotationX, rotationY, zoomLevel, showGrid };
+  localStorage.setItem(CAMERA_STORAGE_KEY, JSON.stringify(cameraData));
+
+  // Afficher l'indicateur de sauvegarde
+  cameraPositionSaved.value = true;
+  setTimeout(() => {
+    cameraPositionSaved.value = false;
+  }, 2000);
+};
+
+// Fonction pour charger la position de la caméra
+const loadCameraPosition = () => {
+  try {
+    const saved = localStorage.getItem(CAMERA_STORAGE_KEY);
+    if (saved) {
+      const cameraData = JSON.parse(saved);
+      return {
+        rotationX: cameraData.rotationX || 0,
+        rotationY: cameraData.rotationY || 0,
+        zoomLevel: cameraData.zoomLevel || 0,
+        showGrid:
+          cameraData.showGrid !== undefined ? cameraData.showGrid : true,
+      };
+    }
+  } catch (error) {
+    console.warn("Erreur lors du chargement de la position de caméra:", error);
+  }
+  return { rotationX: 0, rotationY: 0, zoomLevel: 0, showGrid: true };
+};
+
+// Fonction pour réinitialiser la vue de la caméra
+const resetCameraView = () => {
+  if (resetCameraCallback) {
+    resetCameraCallback();
+  }
+};
+
 const initP5 = () => {
   const sketch = (p: p5) => {
-    let rotationX = 0;
-    let rotationY = 0;
-    let zoomLevel = 0;
+    // Charger la position sauvegardée
+    const savedCamera = loadCameraPosition();
+    let rotationX = savedCamera.rotationX;
+    let rotationY = savedCamera.rotationY;
+    let zoomLevel = savedCamera.zoomLevel;
     let mousePressed = false;
     let lastMouseX = 0;
     let lastMouseY = 0;
+    let showGrid = savedCamera.showGrid;
 
     p.setup = () => {
       const canvas = p.createCanvas(640, 480, p.WEBGL);
@@ -133,8 +209,10 @@ const initP5 = () => {
       p.rotateX(rotationX);
       p.rotateY(rotationY);
 
-      // Grid de référence
-      drawGrid(p);
+      // Grid de référence (désactivable avec 'g')
+      if (showGrid) {
+        drawGrid(p);
+      }
 
       // Axes de référence
       drawAxes(p);
@@ -172,6 +250,10 @@ const initP5 = () => {
         rotationY += deltaY * 0.01;
         lastMouseX = p.mouseX;
         lastMouseY = p.mouseY;
+
+        // Sauvegarder la position automatiquement
+        saveCameraPosition(rotationX, rotationY, zoomLevel, showGrid);
+
         return false;
       }
     };
@@ -187,8 +269,32 @@ const initP5 = () => {
         zoomLevel += event.delta * 2;
         // Limiter le zoom
         zoomLevel = p.constrain(zoomLevel, -800, 400);
+
+        // Sauvegarder la position automatiquement
+        saveCameraPosition(rotationX, rotationY, zoomLevel, showGrid);
+
         return false; // Empêcher le scroll de la page
       }
+    };
+
+    p.keyPressed = () => {
+      if (p.key === "g" || p.key === "G") {
+        showGrid = !showGrid;
+
+        // Sauvegarder la position automatiquement
+        saveCameraPosition(rotationX, rotationY, zoomLevel, showGrid);
+
+        return false; // Empêcher le comportement par défaut
+      }
+    };
+
+    // Fonction de réinitialisation accessible depuis l'extérieur
+    resetCameraCallback = () => {
+      rotationX = 0;
+      rotationY = 0;
+      zoomLevel = 0;
+      showGrid = true;
+      saveCameraPosition(rotationX, rotationY, zoomLevel, showGrid);
     };
   };
 
@@ -337,5 +443,21 @@ watch(isDetecting, (detecting) => {
 
 .p5-canvas canvas {
   display: block !important;
+}
+
+.fade-out {
+  animation: fadeOut 2s ease-out forwards;
+}
+
+@keyframes fadeOut {
+  0% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 </style>

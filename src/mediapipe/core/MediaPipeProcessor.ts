@@ -109,7 +109,7 @@ export class MediaPipeProcessor {
         const hands: HandData[] = [];
         const useWorldLandmarks = false;
 
-        if (!useWorldLandmarks) {
+        if (useWorldLandmarks) {
 
             // Vérifiez si `world_landmarks` et `handedness` existent
             if (results.multiHandWorldLandmarks && results.multiHandedness) {
