@@ -71,7 +71,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from "vue";
+import { ref, onMounted, onUnmounted, watch, nextTick } from "vue";
 import { storeToRefs } from "pinia";
 import { useMediaPipeStore } from "@/stores/mediapipe";
 import p5 from "p5";
@@ -82,9 +82,10 @@ const hasPreprocessedData = ref(false);
 const cameraPositionSaved = ref(false);
 
 let p5Instance: p5 | null = null;
-let easycam: any = null;
 let preprocessedLandmarks: any[] = [];
 let resetCameraCallback: (() => void) | null = null;
+let isP5Initialized = false;
+let isMounted = false;
 
 const { isDetecting } = storeToRefs(mediaPipeStore);
 
@@ -122,17 +123,39 @@ const HAND_CONNECTIONS = [
   [13, 17],
 ];
 
-onMounted(() => {
-  if (p5Container.value) {
+onMounted(async () => {
+  isMounted = true;
+  await nextTick();
+  if (p5Container.value && !isP5Initialized) {
     initP5();
   }
 });
 
 onUnmounted(() => {
-  if (p5Instance) {
-    p5Instance.remove();
-  }
+  isMounted = false;
+  cleanup();
 });
+
+const cleanup = () => {
+  isMounted = false;
+
+  if (p5Instance) {
+    try {
+      p5Instance.remove();
+    } catch (e) {
+      console.warn("Erreur lors de la suppression de p5Instance:", e);
+    }
+    p5Instance = null;
+  }
+  isP5Initialized = false;
+  resetCameraCallback = null;
+
+  // Nettoyer l'interval s'il existe
+  if (updateInterval) {
+    clearInterval(updateInterval);
+    updateInterval = null;
+  }
+};
 
 // Clé pour localStorage
 const CAMERA_STORAGE_KEY = "vue-mediapipe-3d-camera";
@@ -182,6 +205,10 @@ const resetCameraView = () => {
 };
 
 const initP5 = () => {
+  if (isP5Initialized || !p5Container.value) {
+    return;
+  }
+
   const sketch = (p: p5) => {
     // Charger la position sauvegardée
     const savedCamera = loadCameraPosition();
@@ -298,7 +325,13 @@ const initP5 = () => {
     };
   };
 
-  p5Instance = new p5(sketch);
+  try {
+    p5Instance = new p5(sketch);
+    isP5Initialized = true;
+  } catch (error) {
+    console.error("Erreur lors de l'initialisation de p5:", error);
+    isP5Initialized = false;
+  }
 };
 
 const drawGrid = (p: p5) => {
@@ -347,14 +380,16 @@ const drawHand3D = (p: p5, landmarks: any[]) => {
   p.strokeWeight(2);
 
   for (const [start, end] of HAND_CONNECTIONS) {
-    if (points3D[start] && points3D[end]) {
+    const startPoint = points3D[start];
+    const endPoint = points3D[end];
+    if (startPoint && endPoint) {
       p.line(
-        points3D[start].x,
-        points3D[start].y,
-        points3D[start].z,
-        points3D[end].x,
-        points3D[end].y,
-        points3D[end].z
+        startPoint.x,
+        startPoint.y,
+        startPoint.z,
+        endPoint.x,
+        endPoint.y,
+        endPoint.z
       );
     }
   }
@@ -382,51 +417,109 @@ const drawHand3D = (p: p5, landmarks: any[]) => {
 
 // Surveiller les données préprocessées
 const updatePreprocessedData = () => {
-  // Récupérer le processor depuis le mediaPipeStore
-  const processor = mediaPipeStore.getProcessor();
-
-  if (processor && processor.getCurrentFrame) {
-    const currentFrame = processor.getCurrentFrame();
-
-    if (currentFrame && currentFrame.hands && currentFrame.hands.length > 0) {
-      // Prendre la première main détectée
-      const firstHand = currentFrame.hands[0];
-
-      if (firstHand && firstHand.landmarks) {
-        preprocessedLandmarks = firstHand.landmarks;
-        hasPreprocessedData.value = true;
-        return;
-      }
-    }
+  // Vérifier que le composant est encore monté
+  if (!isMounted || !isP5Initialized || !p5Container.value) {
+    return;
   }
 
-  preprocessedLandmarks = [];
-  hasPreprocessedData.value = false;
+  try {
+    // Récupérer le processor depuis le mediaPipeStore
+    const processor = mediaPipeStore.getProcessor();
+
+    if (processor && processor.getCurrentFrame) {
+      const currentFrame = processor.getCurrentFrame();
+
+      if (currentFrame && currentFrame.hands && currentFrame.hands.length > 0) {
+        // Prendre la première main détectée
+        const firstHand = currentFrame.hands[0];
+
+        if (firstHand && firstHand.landmarks) {
+          preprocessedLandmarks = firstHand.landmarks;
+          hasPreprocessedData.value = true;
+          return;
+        }
+      }
+    }
+
+    preprocessedLandmarks = [];
+    hasPreprocessedData.value = false;
+  } catch (error) {
+    console.warn(
+      "Erreur lors de la mise à jour des données préprocessées:",
+      error
+    );
+    preprocessedLandmarks = [];
+    hasPreprocessedData.value = false;
+  }
 };
 
 // Surveiller les changements dans le store
 watch(
   () => mediaPipeStore.processorVersion,
   () => {
-    updatePreprocessedData();
-  }
+    if (isMounted && isP5Initialized && p5Container.value) {
+      updatePreprocessedData();
+    }
+  },
+  { flush: "post" }
 );
 
 // Mettre à jour périodiquement les données
 let updateInterval: number | null = null;
 
-watch(isDetecting, (detecting) => {
-  if (detecting) {
-    updateInterval = setInterval(updatePreprocessedData, 50); // 20 FPS
-  } else {
-    if (updateInterval) {
-      clearInterval(updateInterval);
-      updateInterval = null;
+watch(
+  isDetecting,
+  (detecting) => {
+    try {
+      if (detecting && isMounted && isP5Initialized && p5Container.value) {
+        if (updateInterval) {
+          clearInterval(updateInterval);
+        }
+        updateInterval = window.setInterval(() => {
+          // Vérifier que le composant existe encore avant la mise à jour
+          if (isMounted && isP5Initialized && p5Container.value) {
+            updatePreprocessedData();
+          } else if (updateInterval) {
+            clearInterval(updateInterval);
+            updateInterval = null;
+          }
+        }, 50); // 20 FPS
+      } else {
+        if (updateInterval) {
+          clearInterval(updateInterval);
+          updateInterval = null;
+        }
+        if (isMounted) {
+          preprocessedLandmarks = [];
+          hasPreprocessedData.value = false;
+        }
+      }
+    } catch (error) {
+      console.warn("Erreur dans le watcher isDetecting:", error);
+      if (updateInterval) {
+        clearInterval(updateInterval);
+        updateInterval = null;
+      }
     }
-    preprocessedLandmarks = [];
-    hasPreprocessedData.value = false;
-  }
-});
+  },
+  { flush: "post" }
+);
+
+// Watcher pour réinitialiser p5 si nécessaire
+watch(
+  () => p5Container.value,
+  async (newContainer) => {
+    try {
+      if (isMounted && newContainer && !isP5Initialized) {
+        await nextTick();
+        initP5();
+      }
+    } catch (error) {
+      console.warn("Erreur lors de la réinitialisation p5:", error);
+    }
+  },
+  { flush: "post" }
+);
 </script>
 
 <style scoped>
@@ -435,14 +528,19 @@ watch(isDetecting, (detecting) => {
   border-radius: 8px;
   overflow: hidden;
   background: linear-gradient(135deg, #141925 0%, #1a1f2e 100%);
+  position: relative;
 }
 
 .p5-canvas {
   display: block;
+  position: relative;
+  width: 640px;
+  height: 480px;
 }
 
 .p5-canvas canvas {
   display: block !important;
+  position: relative !important;
 }
 
 .fade-out {

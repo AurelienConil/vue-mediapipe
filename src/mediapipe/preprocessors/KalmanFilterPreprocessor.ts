@@ -7,16 +7,16 @@
 import { BasePreprocessor } from './BasePreprocessor';
 import type { MediaPipeFrame, HandData, HandLandmarks } from '../types';
 
-// Interface pour l'état du filtre Kalman
-interface KalmanState {
-    x: number; // Position estimée
-    v: number; // Vitesse estimée
-    p: number; // Covariance de l'erreur d'estimation
+// Interface pour l'état du filtre Kalman 3D
+interface KalmanState3D {
+    x: { pos: number; vel: number; cov: number }; // État pour x
+    y: { pos: number; vel: number; cov: number }; // État pour y
+    z: { pos: number; vel: number; cov: number }; // État pour z
 }
 
-// Interface pour le filtre Kalman
-interface KalmanFilter {
-    state: KalmanState;
+// Interface pour le filtre Kalman 3D
+interface KalmanFilter3D {
+    state: KalmanState3D;
     processNoise: number; // Bruit du processus
     measurementNoise: number; // Bruit de mesure
 }
@@ -25,12 +25,15 @@ export class KalmanFilterPreprocessor extends BasePreprocessor {
     readonly name = 'Kalman Filter Preprocessor';
     readonly id = 'kalman-filter';
 
-    // Filtres Kalman pour chaque landmark de chaque main
-    private filters: Map<string, KalmanFilter[]> = new Map();
+    // Indices des fingertips (bouts des doigts) - optimisation performance
+    private static readonly FINGERTIP_INDICES = [4, 8, 12, 16, 20]; // THUMB_TIP, INDEX_TIP, MIDDLE_TIP, RING_TIP, PINKY_TIP
+
+    // Filtres Kalman uniquement pour les fingertips (5 au lieu de 21 landmarks)
+    private filters: Map<string, Map<number, KalmanFilter3D>> = new Map();
 
     constructor() {
         super();
-        this.description = 'Applique un filtre de Kalman pour lisser les mouvements et réduire le bruit';
+        this.description = 'Filtre Kalman optimisé - lisse uniquement les fingertips (5 points au lieu de 21)';
     }
 
     preprocess(frame: MediaPipeFrame): MediaPipeFrame {
@@ -51,16 +54,20 @@ export class KalmanFilterPreprocessor extends BasePreprocessor {
 
             // Initialiser les filtres si nécessaire
             if (!this.filters.has(handKey)) {
-                this.initializeFiltersForHand(hand.landmarks);
+                this.initializeFiltersForHand(hand.landmarks, handKey);
             }
 
-            // Appliquer le filtre de Kalman à chaque landmark
+            // Appliquer le filtre de Kalman uniquement aux fingertips
             const filteredLandmarks = hand.landmarks.map((landmark, index) => {
-                const filter = this.filters.get(handKey)?.[index];
-                if (filter) {
-                    return this.applyKalmanFilter(landmark, filter);
+                // Ne filtrer que les fingertips pour optimiser les performances
+                if (KalmanFilterPreprocessor.FINGERTIP_INDICES.includes(index)) {
+                    const handFilters = this.filters.get(handKey);
+                    const filter = handFilters?.get(index);
+                    if (filter) {
+                        return this.applyKalmanFilter(landmark, filter);
+                    }
                 }
-                return landmark;
+                return landmark; // Retourner sans filtrage pour les autres landmarks
             });
 
             processedHands.push({
@@ -76,55 +83,63 @@ export class KalmanFilterPreprocessor extends BasePreprocessor {
     }
 
     /**
-     * Initialiser les filtres de Kalman pour une main
+     * Initialiser les filtres de Kalman pour les fingertips d'une main
      */
-    private initializeFiltersForHand(landmarks: HandLandmarks[]): void {
-        const handKey = `initializing_${landmarks.length}`;
+    private initializeFiltersForHand(landmarks: HandLandmarks[], handKey: string): void {
+        const handFilters = new Map<number, KalmanFilter3D>();
 
-        const filters: KalmanFilter[] = landmarks.map(landmark => ({
-            state: {
-                x: landmark.x, // Position initiale
-                v: 0,          // Vitesse initiale (0)
-                p: 1           // Covariance initiale (incertitude élevée)
-            },
-            processNoise: 0.01,  // Bruit du processus (ajustable)
-            measurementNoise: 0.1 // Bruit de mesure (ajustable)
-        }));
+        // Initialiser uniquement les filtres pour les fingertips
+        KalmanFilterPreprocessor.FINGERTIP_INDICES.forEach(index => {
+            if (index < landmarks.length) {
+                const landmark = landmarks[index];
+                handFilters.set(index, {
+                    state: {
+                        x: { pos: landmark.x, vel: 0, cov: 1 },
+                        y: { pos: landmark.y, vel: 0, cov: 1 },
+                        z: { pos: landmark.z, vel: 0, cov: 1 }
+                    },
+                    processNoise: 0.01,  // Bruit du processus (ajustable)
+                    measurementNoise: 0.1 // Bruit de mesure (ajustable)
+                });
+            }
+        });
 
-        this.filters.set(handKey, filters);
-        console.log(`Filtres de Kalman initialisés pour ${landmarks.length} landmarks`);
+        this.filters.set(handKey, handFilters);
+        console.log(`Filtres Kalman optimisés initialisés pour ${handFilters.size} fingertips (clé: ${handKey})`);
     }
 
     /**
-     * Appliquer le filtre de Kalman à un landmark
+     * Appliquer le filtre de Kalman 3D à un landmark
      */
-    private applyKalmanFilter(landmark: HandLandmarks, filter: KalmanFilter): HandLandmarks {
-        // Prédiction
-        const predictedState = {
-            x: filter.state.x + filter.state.v,
-            v: filter.state.v,
-            p: filter.state.p + filter.processNoise
+    private applyKalmanFilter(landmark: HandLandmarks, filter: KalmanFilter3D): HandLandmarks {
+        // Fonction helper pour filtrer une dimension
+        const filterDimension = (measurement: number, state: { pos: number; vel: number; cov: number }) => {
+            // Prédiction
+            const predictedPos = state.pos + state.vel;
+            const predictedVel = state.vel;
+            const predictedCov = state.cov + filter.processNoise;
+
+            // Mise à jour
+            const residual = measurement - predictedPos;
+            const gain = predictedCov / (predictedCov + filter.measurementNoise);
+
+            return {
+                pos: predictedPos + gain * residual,
+                vel: predictedVel + gain * residual,
+                cov: (1 - gain) * predictedCov
+            };
         };
 
-        // Mise à jour
-        const residual = landmark.x - predictedState.x;
-        const gain = predictedState.p / (predictedState.p + filter.measurementNoise);
+        // Appliquer le filtre à chaque dimension
+        filter.state.x = filterDimension(landmark.x, filter.state.x);
+        filter.state.y = filterDimension(landmark.y, filter.state.y);
+        filter.state.z = filterDimension(landmark.z, filter.state.z);
 
-        const updatedState = {
-            x: predictedState.x + gain * residual,
-            v: predictedState.v + gain * residual,
-            p: (1 - gain) * predictedState.p
-        };
-
-        // Mettre à jour l'état du filtre
-        filter.state = updatedState;
-
-        // Retourner le landmark filtré (on filtre seulement x pour l'exemple)
-        // Note: Pour une implémentation complète, il faudrait filtrer x, y et z séparément
+        // Retourner le landmark filtré
         return {
-            x: updatedState.x,
-            y: landmark.y,
-            z: landmark.z
+            x: filter.state.x.pos,
+            y: filter.state.y.pos,
+            z: filter.state.z.pos
         };
     }
 
@@ -137,15 +152,15 @@ export class KalmanFilterPreprocessor extends BasePreprocessor {
     }
 
     /**
-     * Configurer les paramètres du filtre de Kalman
+     * Configurer les paramètres du filtre de Kalman pour tous les fingertips
      */
-    public configureFilter(processNoise: number = 0.01, measurementNoise: number = 0.1): void {
-        this.filters.forEach(filters => {
-            filters.forEach(filter => {
+    public configureFilter(processNoise: number = 0.1, measurementNoise: number = 0.1): void {
+        this.filters.forEach(handFilters => {
+            handFilters.forEach(filter => {
                 filter.processNoise = processNoise;
                 filter.measurementNoise = measurementNoise;
             });
         });
-        console.log(`Filtres de Kalman configurés (processNoise: ${processNoise}, measurementNoise: ${measurementNoise})`);
+        console.log(`Filtres Kalman fingertips configurés (processNoise: ${processNoise}, measurementNoise: ${measurementNoise})`);
     }
 }

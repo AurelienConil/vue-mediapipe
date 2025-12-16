@@ -101,34 +101,19 @@
         <!-- Feature Display -->
         <div class="feature-display mt-1">
           <!-- Number Display -->
-          <div
+          <FeatureNumberDisplay
             v-if="feature.display === 'Number' || !feature.display"
-            class="number-display"
-          >
-            <v-progress-linear
-              :model-value="feature.value"
-              :color="getFeatureColor(feature)"
-              height="12"
-              :max="feature.minMax ? feature.minMax[1] : 1"
-              rounded
-            >
-              <template #default="{ value }">
-                <small class="text-white">{{
-                  formatValue(feature.value)
-                }}</small>
-              </template>
-            </v-progress-linear>
-          </div>
+            :feature="feature"
+          />
 
           <!-- Graph Display -->
-          <div v-else-if="feature.display === 'Graph'" class="graph-display">
-            <canvas
-              :id="'canvas_' + key"
-              width="250"
-              height="30"
-              class="mini-graph"
-            ></canvas>
-          </div>
+          <FeatureChart
+            v-else-if="feature.display === 'Graph'"
+            :feature="feature"
+            :feature-key="key"
+            :width="250"
+            :height="30"
+          />
         </div>
       </div>
     </div>
@@ -136,9 +121,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick, computed, watch } from "vue";
+import { ref, onMounted, onUnmounted, computed, watch } from "vue";
 import type { Feature, Finger } from "../mediapipe/types";
 import { FeatureStore } from "../stores/FeatureStore";
+import FeatureChart from "./FeatureChart.vue";
+import FeatureNumberDisplay from "./FeatureNumberDisplay.vue";
 
 // Props
 interface Props {
@@ -150,8 +137,6 @@ const props = defineProps<Props>();
 // Reactive data
 const features = ref<Map<string, Feature>>(new Map());
 const totalFeatures = ref(0);
-const graphHistory = ref<Map<string, number[]>>(new Map());
-const maxHistoryLength = 50; // Nombre de points dans le graphique
 
 // Système de filtrage
 type CategoryFilter = "all" | "favorites" | string; // string pour les catégories spécifiques
@@ -207,33 +192,90 @@ const availableCategories = computed(() => {
 // Système de favoris
 const favorites = ref<Set<string>>(new Set());
 
-// Canvas contexts cache
-const canvasContexts = new Map<string, CanvasRenderingContext2D>();
+// Removed canvas management - now handled by dedicated components
 
 // Computed pour les features filtrées
 const filteredFeatures = computed(() => {
   const filtered = new Map<string, Feature>();
+  let totalProcessed = 0;
+  let fingersFiltered = 0;
+  let categoryFiltered = 0;
 
   for (const [key, feature] of features.value) {
+    totalProcessed++;
     let shouldInclude = true;
+    let filterReason = "";
 
     // Filtre par doigts (toujours appliqué)
     if (feature.finger && !selectedFingers.value.has(feature.finger)) {
       shouldInclude = false;
+      filterReason = `finger ${feature.finger} not selected`;
+      fingersFiltered++;
     }
 
     // Filtre par catégorie (si sélectionné)
     if (shouldInclude && selectedCategory.value !== "all") {
       if (selectedCategory.value === "favorites") {
-        shouldInclude = favorites.value.has(key);
+        if (!favorites.value.has(key)) {
+          shouldInclude = false;
+          filterReason = "not in favorites";
+          categoryFiltered++;
+        }
       } else {
         // Catégorie spécifique
-        shouldInclude = feature.parents === selectedCategory.value;
+        if (feature.parents !== selectedCategory.value) {
+          shouldInclude = false;
+          filterReason = `category ${feature.parents} != ${selectedCategory.value}`;
+          categoryFiltered++;
+        }
       }
     }
 
     if (shouldInclude) {
       filtered.set(key, feature);
+    }
+  }
+
+  // Debug logging (throttled)
+  if (totalProcessed > 0 && Math.random() < 0.1) {
+    // Log ~10% of the time for better debugging
+    console.log(
+      `🔍 Filtering summary: ${filtered.size}/${totalProcessed} features shown`
+    );
+    console.log(`   - ${fingersFiltered} filtered by fingers`);
+    console.log(`   - ${categoryFiltered} filtered by category`);
+    console.log(`   - Selected fingers:`, Array.from(selectedFingers.value));
+    console.log(`   - Selected category:`, selectedCategory.value);
+
+    if (filtered.size > 0) {
+      console.log(
+        `   - First few filtered features:`,
+        Array.from(filtered.keys()).slice(0, 3)
+      );
+      // Show sample feature structure
+      const [firstKey, firstFeature] = Array.from(filtered.entries())[0];
+      console.log(`   - Sample feature structure:`, {
+        key: firstKey,
+        name: firstFeature.name,
+        display: firstFeature.display,
+        value: firstFeature.value,
+        type: firstFeature.type,
+      });
+    } else {
+      console.log(`   - No features passed filters!`);
+      if (totalProcessed > 0) {
+        console.log(
+          `   - All features summary:`,
+          Array.from(features.value.entries())
+            .slice(0, 3)
+            .map(([key, f]) => ({
+              key,
+              name: f.name,
+              finger: f.finger,
+              display: f.display,
+            }))
+        );
+      }
     }
   }
 
@@ -342,8 +384,28 @@ const formatCategoryName = (category: string): string => {
 
 // Update features from store
 const updateFeatures = () => {
-  features.value = props.featureStore.getAllFeatures();
-  totalFeatures.value = features.value.size;
+  console.log("🔄 About to get features from store...");
+  console.log("🏪 FeatureStore:", props.featureStore);
+  console.log(
+    "🏪 FeatureStore methods:",
+    Object.getOwnPropertyNames(Object.getPrototypeOf(props.featureStore))
+  );
+
+  const newFeatures = props.featureStore.getAllFeatures();
+  console.log("🔄 Features retrieved from store:", newFeatures.size);
+
+  if (newFeatures.size > 0) {
+    console.log(
+      "📋 First few features:",
+      Array.from(newFeatures.entries()).slice(0, 3)
+    );
+  } else {
+    console.log("⚠️ No features found in store");
+    console.log("🔍 Checking if processor has processed any data...");
+  }
+
+  features.value = newFeatures;
+  totalFeatures.value = newFeatures.size;
 };
 
 // Subscribe to all feature changes
@@ -366,29 +428,15 @@ const formatFeatureName = (name: string): string => {
     .trim();
 };
 
-// Format feature value
-const formatValue = (value: string | boolean | number): string => {
-  if (typeof value === "number") {
-    return value.toFixed(3);
-  }
-  return String(value);
-};
-
-// Get normalized value for progress bar (0-100)
-const getNormalizedValue = (feature: Feature): number => {
-  if (typeof feature.value !== "number") return 0;
-
-  const [min, max] = feature.minMax;
-  const normalized = ((feature.value - min) / (max - min)) * 100;
-  return Math.max(0, Math.min(100, normalized));
-};
-
-// Get feature color based on type and value
+// Helper functions for feature display in the header
 const getFeatureColor = (feature: Feature): string => {
   switch (feature.type) {
     case "number":
       if (typeof feature.value === "number") {
-        const normalized = getNormalizedValue(feature);
+        const [min, max] = feature.minMax;
+        const range = max - min;
+        if (range === 0) return "blue";
+        const normalized = ((feature.value - min) / range) * 100;
         if (normalized > 80) return "red";
         if (normalized > 60) return "orange";
         if (normalized > 40) return "yellow";
@@ -411,109 +459,11 @@ const getFeatureIcon = (feature: Feature): string => {
   return "mdi-chart-line";
 };
 
-// Update graph history and redraw
-const updateGraph = (key: string, feature: Feature) => {
-  if (feature.display !== "Graph" || typeof feature.value !== "number") {
-    return;
-  }
-
-  // Vérifier que la feature est actuellement visible avant de dessiner
-  if (!filteredFeatures.value.has(key)) {
-    return;
-  }
-
-  // Get or create history array
-  let history = graphHistory.value.get(key) || [];
-  history.push(feature.value);
-
-  // Limit history length
-  if (history.length > maxHistoryLength) {
-    history = history.slice(-maxHistoryLength);
-  }
-
-  graphHistory.value.set(key, history);
-
-  // Redraw canvas seulement si l'élément existe
-  nextTick(() => {
-    const canvas = document.getElementById(`canvas_${key}`);
-    if (canvas) {
-      drawGraph(key, history, feature.minMax);
-    }
-  });
-};
-
-// Draw mini graph on canvas
-const drawGraph = (key: string, data: number[], minMax: [number, number]) => {
-  const canvas = document.getElementById(`canvas_${key}`) as HTMLCanvasElement;
-  if (!canvas) {
-    // Canvas pas trouvé - probablement filtré, pas d'erreur
-    return;
-  }
-
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-
-  const width = canvas.width;
-  const height = canvas.height;
-
-  // Clear canvas
-  ctx.clearRect(0, 0, width, height);
-
-  if (data.length < 2) return;
-
-  const [min, max] = minMax;
-  const range = max - min;
-
-  // Draw grid
-  ctx.strokeStyle = "#333";
-  ctx.lineWidth = 0.5;
-  ctx.setLineDash([2, 2]);
-
-  // Horizontal grid lines
-  for (let i = 0; i <= 4; i++) {
-    const y = (height / 4) * i;
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(width, y);
-    ctx.stroke();
-  }
-
-  // Draw line graph
-  ctx.strokeStyle = "#2196F3";
-  ctx.lineWidth = 1.5;
-  ctx.setLineDash([]);
-  ctx.beginPath();
-
-  data.forEach((value, index) => {
-    const x = (width / (data.length - 1)) * index;
-    const normalizedValue = (value - min) / range;
-    const y = height - normalizedValue * height;
-
-    if (index === 0) {
-      ctx.moveTo(x, y);
-    } else {
-      ctx.lineTo(x, y);
-    }
-  });
-
-  ctx.stroke();
-
-  // Draw current value point
-  if (data.length > 0) {
-    const lastValue = data[data.length - 1];
-    const x = width - 2;
-    const normalizedValue = (lastValue - min) / range;
-    const y = height - normalizedValue * height;
-
-    ctx.fillStyle = "#FF5722";
-    ctx.beginPath();
-    ctx.arc(x, y, 2, 0, 2 * Math.PI);
-    ctx.fill();
-  }
-};
+// Graph rendering is now handled by FeatureGraphDisplay component
 
 // Polling interval
-let pollInterval: NodeJS.Timeout;
+let pollInterval: number | null = null;
+let isMounted = false;
 
 // Watcher pour réinitialiser lorsque le processor change
 watch(
@@ -523,45 +473,149 @@ watch(
     // Forcer la mise à jour des features
     updateFeatures();
 
-    // Réinitialiser l'historique des graphiques
-    graphHistory.value.clear();
-    console.log("Historique des graphiques réinitialisé");
-
     // Recharger les favoris depuis localStorage
     loadFavorites();
   }
 );
 
+// Graph rendering is now handled by individual FeatureGraphDisplay components
+
 onMounted(() => {
+  isMounted = true;
   updateFeatures();
   loadFavorites();
 
-  // Poll for updates (since we don't have proper subscriptions yet)
-  pollInterval = setInterval(() => {
-    const newFeatures = props.featureStore.getAllFeatures();
+  console.log("🚀 FeaturesMonitor mounted");
+  console.log("📊 Initial features count:", features.value.size);
+  console.log("🔍 Initial filtered features:", filteredFeatures.value.size);
 
-    // Mettre à jour les features d'abord
-    features.value = newFeatures;
-    totalFeatures.value = newFeatures.size;
+  // Polling optimisé - ne met à jour que les features visibles
+  let lastVisibleFeatureKeys = new Set<string>();
 
-    // Check for updates and update graphs (seulement pour les features actuellement affichées)
-    for (const [key, feature] of filteredFeatures.value) {
-      const oldFeature = features.value.get(key);
-      if (!oldFeature || oldFeature.timestamp !== feature.timestamp) {
-        updateGraph(key, feature);
+  pollInterval = window.setInterval(() => {
+    try {
+      // Vérifier que le composant existe encore et que le store est disponible
+      if (!isMounted || !props.featureStore || !features.value) {
+        if (!isMounted) {
+          console.warn("Composant démonté, arrêt du polling");
+        } else {
+          console.warn(
+            "FeatureStore ou features non disponible, arrêt du polling"
+          );
+        }
+        if (pollInterval) {
+          clearInterval(pollInterval);
+          pollInterval = null;
+        }
+        return;
+      }
+
+      // 1. Récupérer toutes les features du store (calculs toujours actifs)
+      const allFeatures = props.featureStore.getAllFeatures();
+
+      // 2. Déterminer quelles features sont actuellement visibles
+      const currentVisibleKeys = new Set<string>();
+
+      for (const [key, feature] of allFeatures) {
+        let shouldInclude = true;
+
+        // Appliquer les mêmes filtres que filteredFeatures
+        if (feature.finger && !selectedFingers.value.has(feature.finger)) {
+          shouldInclude = false;
+        }
+
+        if (shouldInclude && selectedCategory.value !== "all") {
+          if (selectedCategory.value === "favorites") {
+            if (!favorites.value.has(key)) {
+              shouldInclude = false;
+            }
+          } else {
+            if (feature.parents !== selectedCategory.value) {
+              shouldInclude = false;
+            }
+          }
+        }
+
+        if (shouldInclude) {
+          currentVisibleKeys.add(key);
+        }
+      }
+
+      // 3. Mise à jour optimisée - seulement si nécessaire
+      const visibleKeysChanged =
+        currentVisibleKeys.size !== lastVisibleFeatureKeys.size ||
+        ![...currentVisibleKeys].every((key) =>
+          lastVisibleFeatureKeys.has(key)
+        );
+
+      if (visibleKeysChanged || features.value.size !== allFeatures.size) {
+        // Créer une Map avec seulement les features visibles pour optimiser le rendu Vue
+        const optimizedFeatures = new Map<string, Feature>();
+
+        for (const key of currentVisibleKeys) {
+          const feature = allFeatures.get(key);
+          if (feature) {
+            optimizedFeatures.set(key, feature);
+          }
+        }
+
+        if (isMounted) {
+          features.value = optimizedFeatures; // Seulement les features visibles
+          totalFeatures.value = allFeatures.size; // Garder le total complet pour stats
+        }
+
+        lastVisibleFeatureKeys = currentVisibleKeys;
+
+        // Debug périodique
+        if (Math.random() < 0.02) {
+          // 2% du temps
+          console.log(
+            `🚀 Optimized update: ${optimizedFeatures.size} visible / ${allFeatures.size} total features`
+          );
+        }
+      }
+
+      // Log filtered features every few seconds
+      if (Date.now() % 3000 < 100) {
+        // Roughly every 3 seconds
+        console.log(
+          "🔍 Current filtered features:",
+          filteredFeatures.value.size,
+          "out of",
+          totalFeatures.value
+        );
+        console.log("🎯 Selected fingers:", Array.from(selectedFingers.value));
+        console.log("📋 Selected category:", selectedCategory.value);
+      }
+    } catch (error) {
+      console.warn("Erreur dans le polling des features:", error);
+      if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
       }
     }
-  }, 16); // ~60fps
+  }, 100); // Reduced frequency since individual components handle their own rendering
 });
 
 onUnmounted(() => {
-  if (pollInterval) {
-    clearInterval(pollInterval);
-  }
+  isMounted = false;
+  try {
+    if (pollInterval) {
+      clearInterval(pollInterval);
+      pollInterval = null;
+    }
 
-  // Cleanup subscriptions
-  for (const unsubscribe of subscriptions.values()) {
-    unsubscribe();
+    // Cleanup subscriptions
+    for (const unsubscribe of subscriptions.values()) {
+      try {
+        unsubscribe();
+      } catch (error) {
+        console.warn("Erreur lors du nettoyage d'une souscription:", error);
+      }
+    }
+    subscriptions.clear();
+  } catch (error) {
+    console.warn("Erreur lors du démontage de FeaturesMonitor:", error);
   }
 });
 </script>
@@ -602,16 +656,13 @@ onUnmounted(() => {
 
 .graph-display {
   height: 30px;
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 2px;
   overflow: hidden;
 }
 
-.mini-graph {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
+/* Graph styles moved to FeatureGraphDisplay component */
 
 .filter-chips {
   margin-top: 8px;

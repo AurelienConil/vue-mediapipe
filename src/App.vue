@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import HandDetection from "./components/HandDetection.vue";
 import FeaturesMonitor from "./components/FeaturesMonitor.vue";
 import CoreStatusMonitor from "./components/CoreStatusMonitor.vue";
@@ -43,6 +43,26 @@ const views = [
 const setView = (view: ViewType) => {
   currentView.value = view;
 };
+
+// Computed properties pour contrôler la visibilité des colonnes
+
+const showHandDetection = computed(
+  () => currentView.value === "default" || currentView.value === "camera"
+);
+
+const showFeaturesMonitor = computed(
+  () => currentView.value === "default" || currentView.value === "3d"
+);
+
+const showPreprocessor = computed(
+  () => currentView.value === "3d" || currentView.value === "camera"
+);
+
+const showCoreStatus = computed(() => currentView.value === "settings");
+
+const showPreprocessorControl = computed(
+  () => currentView.value === "settings"
+);
 </script>
 
 <template>
@@ -80,66 +100,65 @@ const setView = (view: ViewType) => {
     </v-app-bar>
 
     <v-main>
-      <v-container fluid>
-        <!-- Tous les composants sont montés en permanence mais affichés conditionnellement -->
-        
-        <!-- Vue Settings: État du système + Préprocesseur -->
-        <div v-show="currentView === 'settings'" class="pa-2">
-          <v-row no-gutters>
-            <v-col cols="6" class="pr-2">
-              <CoreStatusMonitor />
-            </v-col>
-            <v-col cols="6" class="pl-2">
-              <PreprocessorControl />
-            </v-col>
-          </v-row>
-        </div>
+      <v-container fluid class="pa-2">
+        <!-- GRILLE SIMPLE : Une colonne par composant -->
+        <v-row no-gutters>
+          <!-- Colonne 1 : HandDetection -->
+          <v-col
+            cols="6"
+            class="pr-2"
+            :style="{ display: showHandDetection ? 'block' : 'none' }"
+          >
+            <HandDetection />
+          </v-col>
 
-        <!-- Vue 3D: Squelette 3D + Features -->
-        <div v-show="currentView === '3d'" class="pa-2">
-          <v-row no-gutters>
-            <v-col cols="6" class="pr-2">
-              <Preprocessor />
-            </v-col>
-            <v-col cols="6" class="pl-2">
-              <FeaturesMonitor
-                :feature-store="mediaPipeStore.getFeatureStore()"
-                :processor-version="mediaPipeStore.processorVersion"
-              />
-            </v-col>
-          </v-row>
-        </div>
+          <!-- Colonne 2 : FeaturesMonitor -->
+          <v-col
+            cols="6"
+            class="pl-2"
+            :style="{ display: showFeaturesMonitor ? 'block' : 'none' }"
+          >
+            <FeaturesMonitor
+              :feature-store="mediaPipeStore.getFeatureStore()"
+              :processor-version="mediaPipeStore.processorVersion"
+            />
+          </v-col>
 
-        <!-- Vue Camera: Squelette 3D + Détection de main -->
-        <div v-show="currentView === 'camera'" class="pa-2">
-          <v-row no-gutters>
-            <v-col cols="6" class="pr-2">
-              <Preprocessor />
-            </v-col>
-            <v-col cols="6" class="pl-2">
-              <HandDetection />
-            </v-col>
-          </v-row>
-        </div>
+          <!-- Colonne 3 : Preprocessor -->
+          <v-col
+            cols="6"
+            class="pr-2"
+            :style="{ display: showPreprocessor ? 'block' : 'none' }"
+          >
+            <Preprocessor />
+          </v-col>
 
-        <!-- Vue par défaut: Détection de main + Features -->
-        <div v-show="currentView === 'default'" class="pa-2">
-          <v-row no-gutters>
-            <v-col cols="6" class="pr-2">
-              <HandDetection />
-            </v-col>
-            <v-col cols="6" class="pl-2">
-              <FeaturesMonitor
-                :feature-store="mediaPipeStore.getFeatureStore()"
-                :processor-version="mediaPipeStore.processorVersion"
-              />
-            </v-col>
-          </v-row>
-        </div>
+          <!-- Colonne 4 : CoreStatusMonitor -->
+          <v-col
+            cols="6"
+            class="pr-2"
+            :style="{ display: showCoreStatus ? 'block' : 'none' }"
+          >
+            <CoreStatusMonitor />
+          </v-col>
+
+          <!-- Colonne 5 : PreprocessorControl -->
+          <v-col
+            cols="6"
+            class="pl-2"
+            :style="{ display: showPreprocessorControl ? 'block' : 'none' }"
+          >
+            <PreprocessorControl />
+          </v-col>
+        </v-row>
       </v-container>
     </v-main>
   </v-app>
 </template>
 
 <style scoped>
+/* Rien de spécial, juste du layout basique */
+.v-col {
+  transition: none;
+}
 </style>

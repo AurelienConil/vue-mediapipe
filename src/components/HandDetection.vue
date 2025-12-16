@@ -79,8 +79,17 @@ let camera: Camera | null = null;
 
 onMounted(async () => {
   console.log("Composant monté, initialisation de MediaPipe...");
-  await mediaPipeStore.initializeHands();
+  //store the promise of initialization
+  const initializationPromise = mediaPipeStore.initializeHands();
+  //start camera after initialization is complete
+  initializationPromise.then(() => {
+    startCamera();
+  });
+  //fix async because we delete the await
+
+  
   console.log("MediaPipe initialisé:", isInitialized.value);
+  //start camera  when mediapipe is initialized
 });
 
 const startCamera = async () => {

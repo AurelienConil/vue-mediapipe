@@ -27,6 +27,15 @@ export class MediaPipeProcessor {
 
     addExtractor(extractor: BaseFeatureExtractor): void {
         this.extractors.push(extractor);
+        console.log(`✅ Extractor ajouté: ${extractor.name} (${extractor.id})`);
+    }
+
+    // Info sur les extractors (tous sont toujours actifs pour les calculs)
+    getExtractorStats(): { total: number; extractors: string[] } {
+        return {
+            total: this.extractors.length,
+            extractors: this.extractors.map(e => e.name)
+        };
     }
 
     addAnalyzer(analyzer: BaseAnalyzer): void {
@@ -81,18 +90,18 @@ export class MediaPipeProcessor {
         } else if (frame.hands.length > 1) {
             console.log(`${frame.hands.length} mains détectées - extraction annulée (seulement 1 main supportée)`);
         } else {
+            // Exécuter TOUS les extractors - calculs toujours actifs
             //console.log(`🔍 Exécution de ${this.extractors.length} extractors (1 main détectée)`);
-            this.extractors.forEach(extractor => {
-                if (extractor.isEnabled()) {
-                    //console.log(`⚙️ Exécution extractor: ${extractor.name}`);
-                    const features = extractor.extract(frame, this.featureStore);
-                    //console.log(`✨ Features extraites (${features.length}):`, features);
 
-                    features.forEach(feature => {
-                        this.featureStore.setFeature(feature);
-                        //console.log(`💾 Feature stockée: ${feature.name} = ${feature.value}`);
-                    });
-                }
+            this.extractors.forEach(extractor => {
+                //console.log(`⚙️ Exécution extractor: ${extractor.name}`);
+                const features = extractor.extract(frame, this.featureStore);
+                //console.log(`✨ Features extraites (${features.length}):`, features);
+
+                features.forEach(feature => {
+                    this.featureStore.setFeature(feature);
+                    //console.log(`💾 Feature stockée: ${feature.name} = ${feature.value}`);
+                });
             });
 
             // 5. Run analyzers
