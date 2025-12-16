@@ -20,12 +20,20 @@ export const useMediaPipeStore = defineStore('mediaPipe', () => {
     // Utiliser une variable non-reactive pour l'instance MediaPipe
     let handsInstance: Hands | null = null
 
-    // Créer le processor avec extractors
-    const processor = new MediaPipeProcessor()
+    // Utiliser une variable mutable pour le processor (pour permettre le reinitialisation)
+    let processor = new MediaPipeProcessor()
+
+    // Compteur pour forcer la réactivité lorsque le processor change
+    const processorVersion = ref(0)
     processor.addExtractor(new AccelBaseFinger())
     processor.addExtractor(new HandSizeNormalise()) // Refait avec sécurité
     processor.addExtractor(new HandOrientationInSpace())
     processor.addExtractor(new DistanceFinger())
+
+    // Méthode pour traiter les frames avec le processor actuel
+    const processFrameWithCurrentProcessor = (handResults: Results) => {
+        processor.processFrame(handResults)
+    }
 
     const initializeHands = async () => {
         try {
@@ -44,17 +52,19 @@ export const useMediaPipeStore = defineStore('mediaPipe', () => {
                 modelComplexity: 1,
                 minDetectionConfidence: 0.7,
                 minTrackingConfidence: 0.5,
-                staticImageMode: false
+                staticImageMode: false,
+                selfieMode: coreStore.getCoordinateSystem() === 'selfie'
             })
 
-            console.log('Configuration du callback onResults...');
+            // Définir le callback onResults
             newHandsInstance.onResults((handResults: Results) => {
-                console.log('MediaPipe results:', handResults)
+
                 if (handResults.multiHandLandmarks) {
-                    console.log(`${handResults.multiHandLandmarks.length} main(s) détectée(s)`);
+
 
                     // Traiter avec notre architecture !
-                    processor.processFrame(handResults)
+                    // Utiliser la méthode qui a toujours accès au processor actuel
+                    processCurrentFrame(handResults)
                 }
                 // Cloner l'objet pour éviter les problèmes de proxy
                 results.value = JSON.parse(JSON.stringify(handResults))
@@ -98,11 +108,70 @@ export const useMediaPipeStore = defineStore('mediaPipe', () => {
         return coreStore
     }
 
+    // Méthode pour traiter une frame avec le processor actuel
+    const processCurrentFrame = (handResults: Results) => {
+        processor.processFrame(handResults)
+    }
+
+    // Watcher pour redémarrer MediaPipe lorsque le système de coordonnées change
+    watch(
+        () => coreStore.currentCoordinateSystem,
+        async (newSystem, oldSystem) => {
+            if (newSystem !== oldSystem) {
+                console.log(`Système de coordonnées changé: ${oldSystem} → ${newSystem}`);
+
+                // Arrêter la détection actuelle
+                if (isDetecting.value) {
+                    stopDetection();
+                }
+
+                // Réinitialiser l'instance MediaPipe
+                if (handsInstance) {
+                    try {
+                        handsInstance.close();
+                    } catch (e) {
+                        console.warn('Erreur lors de la fermeture de l\'instance MediaPipe:', e);
+                    }
+                    handsInstance = null;
+                }
+
+                isInitialized.value = false;
+
+                // Réinitialiser le processor avec les extracteurs
+                processor = new MediaPipeProcessor();
+                processor.addExtractor(new AccelBaseFinger());
+                processor.addExtractor(new HandSizeNormalise());
+                processor.addExtractor(new HandOrientationInSpace());
+                processor.addExtractor(new DistanceFinger());
+                processor.clearPreprocessors();
+
+                // Incrémenter la version du processor pour forcer la réactivité
+                processorVersion.value++;
+                console.log('Processor réinitialisé avec le nouveau système de coordonnées (version:', processorVersion.value + ')');
+
+                // Réinitialiser MediaPipe avec le nouveau système de coordonnées
+                try {
+                    await initializeHands();
+                    console.log('MediaPipe réinitialisé avec le nouveau système de coordonnées');
+
+                    // Redémarrer la détection si elle était active
+                    if (oldSystem !== undefined) { // Ne pas redémarrer au premier chargement
+                        startDetection();
+                    }
+                } catch (err) {
+                    error.value = 'Erreur lors du redémarrage de MediaPipe avec le nouveau système de coordonnées';
+                    console.error('❌ Erreur de réinitialisation:', err);
+                }
+            }
+        }
+    );
+
     return {
         isInitialized,
         isDetecting,
         results,
         error,
+        processorVersion,
         getHandsInstance,
         initializeHands,
         startDetection,

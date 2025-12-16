@@ -18,7 +18,7 @@ export interface HandInfo {
 }
 
 // Types pour le système de coordonnées
-export type CoordinateSystem = 'camera' | 'selfie' | 'hand-centered'
+export type CoordinateSystem = 'camera' | 'selfie'
 
 export const useCoreStore = defineStore('mediapipeCore', () => {
     // États de base
@@ -35,6 +35,8 @@ export const useCoreStore = defineStore('mediapipeCore', () => {
 
     // Option pour le système de coordonnées
     const coordinateSystem = ref<CoordinateSystem>('camera')
+
+
 
     // Historique FPS pour calcul de moyenne
     const fpsHistory = ref<number[]>([])
@@ -70,13 +72,13 @@ export const useCoreStore = defineStore('mediapipeCore', () => {
         status.value.frameCount = 0
         status.value.lastFrameTime = Date.now()
         error.value = null
-        console.log('🎯 CoreStore: Détection démarrée')
+        console.log('CoreStore: Détection démarrée')
     }
 
     const stopDetection = () => {
         status.value.isDetecting = false
         hands.value.clear()
-        console.log('⏹️ CoreStore: Détection arrêtée')
+        console.log('CoreStore: Détection arrêtée')
     }
 
     const updateFrame = (handsData: HandData[]) => {
@@ -125,7 +127,7 @@ export const useCoreStore = defineStore('mediapipeCore', () => {
             status.value.averageProcessingTime = Math.round(avgProcessingTime * 100) / 100
         }
 
-        console.log(`📊 CoreStore: Frame ${status.value.frameCount}, ${handCount.value} main(s), ${status.value.fps} FPS`)
+        //console.log(` CoreStore: Frame ${status.value.frameCount}, ${handCount.value} main(s), ${status.value.fps} FPS`)
     }
 
     const setError = (message: string) => {
@@ -149,7 +151,7 @@ export const useCoreStore = defineStore('mediapipeCore', () => {
         error.value = null
         fpsHistory.value = []
         processingTimeHistory.value = []
-        console.log('🔄 CoreStore: Reset effectué')
+        console.log('CoreStore: Reset effectué')
     }
 
     // Méthodes utilitaires pour les tests/conditions
@@ -176,13 +178,15 @@ export const useCoreStore = defineStore('mediapipeCore', () => {
 
     // Méthodes pour le système de coordonnées
     const setCoordinateSystem = (system: CoordinateSystem) => {
-        console.log(`🔄 Changement de système de coordonnées: ${coordinateSystem.value} → ${system}`)
+        console.log(`Changement de système de coordonnées: ${coordinateSystem.value} → ${system}`)
         coordinateSystem.value = system
     }
 
     const getCoordinateSystem = (): CoordinateSystem => {
         return coordinateSystem.value
     }
+
+
 
     // Getter pour le système de coordonnées actuel
     const currentCoordinateSystem = computed(() => coordinateSystem.value)

@@ -1,252 +1,201 @@
-&lt;template&gt;
-  &lt;div class="core-status-monitor"&gt;
-    &lt;h3&gt;📊 Core MediaPipe Status&lt;/h3&gt;
-    
-    &lt;!-- Status général --&gt;
-    &lt;div class="status-section"&gt;
-      &lt;h4&gt;🎯 Status&lt;/h4&gt;
-      &lt;div class="status-grid"&gt;
-        &lt;div class="status-item"&gt;
-          &lt;span class="label"&gt;Détection:&lt;/span&gt;
-          &lt;span :class="{'active': coreStore.status.isDetecting, 'inactive': !coreStore.status.isDetecting}"&gt;
-            {{ coreStore.status.isDetecting ? '🟢 Active' : '🔴 Inactive' }}
-          &lt;/span&gt;
-        &lt;/div&gt;
-        &lt;div class="status-item"&gt;
-          &lt;span class="label"&gt;FPS:&lt;/span&gt;
-          &lt;span class="value"&gt;{{ coreStore.status.fps }} (avg: {{ coreStore.averageFps }})&lt;/span&gt;
-        &lt;/div&gt;
-        &lt;div class="status-item"&gt;
-          &lt;span class="label"&gt;Frames:&lt;/span&gt;
-          &lt;span class="value"&gt;{{ coreStore.status.frameCount }}&lt;/span&gt;
-        &lt;/div&gt;
-        &lt;div class="status-item"&gt;
-          &lt;span class="label"&gt;Traitement:&lt;/span&gt;
-          &lt;span class="value"&gt;{{ coreStore.status.averageProcessingTime }}ms&lt;/span&gt;
-        &lt;/div&gt;
-      &lt;/div&gt;
-    &lt;/div&gt;
+<template>
+  <v-card class="core-status-monitor ma-2" elevation="2">
+    <v-card-title class="text-h6">
+      <v-icon left>mdi-monitor</v-icon>
+      État du Système
+    </v-card-title>
 
-    &lt;!-- Détection des mains --&gt;
-    &lt;div class="hands-section"&gt;
-      &lt;h4&gt;👐 Détection des Mains&lt;/h4&gt;
-      &lt;div class="hands-summary"&gt;
-        &lt;div class="hands-count"&gt;
-          &lt;span class="label"&gt;Nombre de mains:&lt;/span&gt;
-          &lt;span :class="getHandCountClass()"&gt;
-            {{ coreStore.handCount }} 
-            {{ getHandCountEmoji() }}
-          &lt;/span&gt;
-        &lt;/div&gt;
-        
-        &lt;div class="hands-status"&gt;
-          &lt;div class="hand-status"&gt;
-            &lt;span class="label"&gt;Main gauche:&lt;/span&gt;
-            &lt;span :class="{'detected': coreStore.hasLeftHand, 'not-detected': !coreStore.hasLeftHand}"&gt;
-              {{ coreStore.hasLeftHand ? '🟢 Détectée' : '⚪ Absente' }}
-              {{ coreStore.leftHandInfo ? `(${Math.round(coreStore.leftHandInfo.confidence * 100)}%)` : '' }}
-            &lt;/span&gt;
-          &lt;/div&gt;
-          
-          &lt;div class="hand-status"&gt;
-            &lt;span class="label"&gt;Main droite:&lt;/span&gt;
-            &lt;span :class="{'detected': coreStore.hasRightHand, 'not-detected': !coreStore.hasRightHand}"&gt;
-              {{ coreStore.hasRightHand ? '🟢 Détectée' : '⚪ Absente' }}
-              {{ coreStore.rightHandInfo ? `(${Math.round(coreStore.rightHandInfo.confidence * 100)}%)` : '' }}
-            &lt;/span&gt;
-          &lt;/div&gt;
-        &lt;/div&gt;
-      &lt;/div&gt;
+    <v-card-text>
+      <div class="status-grid">
+        <!-- État général -->
+        <div class="status-section">
+          <div class="status-header">
+            <v-icon left>mdi-information</v-icon>
+            <span>Statut</span>
+          </div>
+          <div class="status-content">
+            <v-chip
+              :color="coreStore.status.isDetecting ? 'success' : 'grey'"
+              size="small"
+            >
+              {{ coreStore.status.isDetecting ? 'Détection active' : 'En attente' }}
+            </v-chip>
+          </div>
+        </div>
 
-      &lt;!-- Conditions spéciales --&gt;
-      &lt;div class="special-conditions" v-if="coreStore.hasHands"&gt;
-        &lt;h5&gt;✨ Conditions&lt;/h5&gt;
-        &lt;div class="conditions-grid"&gt;
-          &lt;div class="condition-item"&gt;
-            &lt;span class="label"&gt;Une seule main:&lt;/span&gt;
-            &lt;span :class="{'condition-true': coreStore.singleHand, 'condition-false': !coreStore.singleHand}"&gt;
-              {{ coreStore.singleHand ? '✅' : '❌' }}
-            &lt;/span&gt;
-          &lt;/div&gt;
-          &lt;div class="condition-item"&gt;
-            &lt;span class="label"&gt;Deux mains:&lt;/span&gt;
-            &lt;span :class="{'condition-true': coreStore.bothHands, 'condition-false': !coreStore.bothHands}"&gt;
-              {{ coreStore.bothHands ? '✅' : '❌' }}
-            &lt;/span&gt;
-          &lt;/div&gt;
-          &lt;div class="condition-item"&gt;
-            &lt;span class="label"&gt;Confiance gauche (&gt;70%):&lt;/span&gt;
-            &lt;span :class="{'condition-true': coreStore.isHandConfident('Left'), 'condition-false': !coreStore.isHandConfident('Left')}"&gt;
-              {{ coreStore.isHandConfident('Left') ? '✅' : '❌' }}
-            &lt;/span&gt;
-          &lt;/div&gt;
-          &lt;div class="condition-item"&gt;
-            &lt;span class="label"&gt;Confiance droite (&gt;70%):&lt;/span&gt;
-            &lt;span :class="{'condition-true': coreStore.isHandConfident('Right'), 'condition-false': !coreStore.isHandConfident('Right')}"&gt;
-              {{ coreStore.isHandConfident('Right') ? '✅' : '❌' }}
-            &lt;/span&gt;
-          &lt;/div&gt;
-        &lt;/div&gt;
-      &lt;/div&gt;
-    &lt;/div&gt;
+        <!-- FPS -->
+        <div class="status-section">
+          <div class="status-header">
+            <v-icon left>mdi-speedometer</v-icon>
+            <span>Performance</span>
+          </div>
+          <div class="status-content">
+            <div class="fps-display">
+              <span class="fps-value">{{ coreStore.status.fps }}</span>
+              <span class="fps-label">FPS</span>
+            </div>
+          </div>
+        </div>
 
-    &lt;!-- Erreurs --&gt;
-    &lt;div class="error-section" v-if="coreStore.error"&gt;
-      &lt;h4&gt;❌ Erreur&lt;/h4&gt;
-      &lt;div class="error-message"&gt;
-        {{ coreStore.error }}
-      &lt;/div&gt;
-    &lt;/div&gt;
-  &lt;/div&gt;
-&lt;/template&gt;
+        <!-- Mains détectées -->
+        <div class="status-section">
+          <div class="status-header">
+            <v-icon left>mdi-hand-wave</v-icon>
+            <span>Mains</span>
+          </div>
+          <div class="status-content">
+            <div v-if="coreStore.hasHands" class="hands-display">
+              <v-icon v-if="coreStore.hasLeftHand" color="blue" class="mr-1">mdi-hand-left</v-icon>
+              <v-icon v-if="coreStore.hasRightHand" color="orange" class="mr-1">mdi-hand-right</v-icon>
+              <span>{{ coreStore.handCount }} main{{ coreStore.handCount > 1 ? 's' : '' }}</span>
+            </div>
+            <div v-else class="no-hands">
+              <span>Aucune main détectée</span>
+            </div>
+          </div>
+        </div>
 
-&lt;script setup lang="ts"&gt;
-import { useCoreStore } from '@/stores/CoreStore'
+        <!-- Conditions spéciales -->
+        <div v-if="coreStore.hasHands" class="special-conditions mt-4">
+          <div class="condition-item">
+            <v-icon :color="coreStore.bothHands ? 'success' : 'grey'" class="mr-1">
+              mdi-handshake
+            </v-icon>
+            <span>Deux mains: {{ coreStore.bothHands ? '✅' : '❌' }}</span>
+          </div>
+        </div>
+      </div>
 
-const coreStore = useCoreStore()
+      <!-- Détails techniques -->
+      <v-expansion-panels class="mt-4 technical-details">
+        <v-expansion-panel>
+          <v-expansion-panel-title>
+            <v-icon left>mdi-cog</v-icon>
+            Détails Techniques
+          </v-expansion-panel-title>
+          <v-expansion-panel-text>
+            <div class="details-grid">
+              <div class="detail-item">
+                <span class="detail-label">Frames:</span>
+                <span class="detail-value">{{ coreStore.status.frameCount }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">FPS moyen:</span>
+                <span class="detail-value">{{ coreStore.averageFps }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Temps traitement:</span>
+                <span class="detail-value">{{ coreStore.status.averageProcessingTime }} ms</span>
+              </div>
+            </div>
+          </v-expansion-panel-text>
+        </v-expansion-panel>
+      </v-expansion-panels>
+    </v-card-text>
+  </v-card>
+</template>
 
-const getHandCountClass = () =&gt; {
-  switch (coreStore.handCount) {
-    case 0: return 'count-none'
-    case 1: return 'count-one'
-    case 2: return 'count-two'
-    default: return 'count-multiple'
-  }
-}
+<script setup lang="ts">
+import { useCoreStore } from '@/stores/CoreStore';
 
-const getHandCountEmoji = () =&gt; {
-  switch (coreStore.handCount) {
-    case 0: return '🚫'
-    case 1: return '👍'
-    case 2: return '👏'
-    default: return '🤹'
-  }
-}
-&lt;/script&gt;
+const coreStore = useCoreStore();
+</script>
 
-&lt;style scoped&gt;
+<style scoped>
 .core-status-monitor {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 20px;
-  border-radius: 12px;
-  margin: 15px 0;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  max-width: 400px;
 }
 
-.core-status-monitor h3 {
-  margin: 0 0 20px 0;
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.status-section {
+  background: rgba(0, 0, 0, 0.05);
+  padding: 8px;
+  border-radius: 4px;
   text-align: center;
-  font-size: 1.4em;
 }
 
-.status-section, .hands-section, .error-section {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  padding: 15px;
-  margin: 15px 0;
+.status-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8em;
+  color: rgba(0, 0, 0, 0.6);
+  margin-bottom: 4px;
 }
 
-.status-section h4, .hands-section h4, .error-section h4 {
-  margin: 0 0 12px 0;
-  font-size: 1.1em;
+.status-content {
+  font-weight: 500;
 }
 
-.status-grid, .conditions-grid {
+.fps-display {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+}
+
+.fps-value {
+  font-size: 1.2em;
+  font-weight: bold;
+}
+
+.fps-label {
+  font-size: 0.8em;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.hands-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.no-hands {
+  font-size: 0.9em;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.special-conditions {
+  background: rgba(0, 0, 0, 0.05);
+  padding: 8px;
+  border-radius: 4px;
+}
+
+.condition-item {
+  display: flex;
+  align-items: center;
+  font-size: 0.9em;
+  padding: 2px 0;
+}
+
+.technical-details {
+  margin-top: 12px;
+}
+
+.details-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
 }
 
-.status-item, .condition-item {
+.detail-item {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  background: rgba(255, 255, 255, 0.1);
-  padding: 8px 12px;
-  border-radius: 6px;
+  font-size: 0.85em;
 }
 
-.label {
-  font-weight: 600;
-  color: #e0e0e0;
+.detail-label {
+  color: rgba(0, 0, 0, 0.6);
 }
 
-.value {
-  font-weight: bold;
-  color: #fff;
+.detail-value {
+  font-weight: 500;
 }
-
-.active {
-  color: #4ade80;
-  font-weight: bold;
-}
-
-.inactive {
-  color: #f87171;
-  font-weight: bold;
-}
-
-.detected {
-  color: #4ade80;
-  font-weight: bold;
-}
-
-.not-detected {
-  color: #d1d5db;
-}
-
-.hands-summary {
-  margin-bottom: 15px;
-}
-
-.hands-count {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-  font-size: 1.1em;
-}
-
-.count-none { color: #f87171; }
-.count-one { color: #fbbf24; }
-.count-two { color: #4ade80; }
-.count-multiple { color: #8b5cf6; }
-
-.hands-status {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.hand-status {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: rgba(255, 255, 255, 0.1);
-  padding: 8px 12px;
-  border-radius: 6px;
-}
-
-.special-conditions h5 {
-  margin: 0 0 10px 0;
-  font-size: 1em;
-  color: #fbbf24;
-}
-
-.condition-true {
-  color: #4ade80;
-}
-
-.condition-false {
-  color: #f87171;
-}
-
-.error-message {
-  background: rgba(248, 113, 113, 0.2);
-  border: 1px solid #f87171;
-  border-radius: 6px;
-  padding: 10px;
-  color: #fecaca;
-}
-&lt;/style&gt;
+</style>

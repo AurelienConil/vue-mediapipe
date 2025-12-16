@@ -1,0 +1,341 @@
+<template>
+  <v-card class="ma-4" elevation="2">
+    <v-card-title class="text-h5">
+      <v-icon left>mdi-cube-outline</v-icon>
+      Squelette 3D Préprocessé
+    </v-card-title>
+
+    <v-card-text>
+      <div class="d-flex flex-column align-center">
+        <div v-if="!isDetecting" class="text-center mb-4">
+          <v-icon size="64" color="grey">mdi-hand-wave-outline</v-icon>
+          <p class="text-body-2 mt-2">
+            Démarrez la détection pour voir le squelette 3D
+          </p>
+        </div>
+
+        <div class="canvas-container">
+          <div ref="p5Container" class="p5-canvas"></div>
+        </div>
+
+        <div class="mt-4 text-center">
+          <v-chip
+            :color="hasPreprocessedData ? 'primary' : 'grey'"
+            size="small"
+            class="mb-2"
+          >
+            <v-icon left size="small">
+              {{
+                hasPreprocessedData ? "mdi-check-circle" : "mdi-circle-outline"
+              }}
+            </v-icon>
+            {{
+              hasPreprocessedData
+                ? "Données préprocessées disponibles"
+                : "En attente de données"
+            }}
+          </v-chip>
+
+          <p class="text-caption">
+            Cliquez et glissez pour faire tourner • Molette pour zoomer poignet=
+            {{ preprocessedLandmarks[0] }}
+          </p>
+        </div>
+      </div>
+    </v-card-text>
+  </v-card>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted, onUnmounted, watch } from "vue";
+import { storeToRefs } from "pinia";
+import { useMediaPipeStore } from "@/stores/mediapipe";
+import p5 from "p5";
+
+const mediaPipeStore = useMediaPipeStore();
+const p5Container = ref<HTMLDivElement>();
+const hasPreprocessedData = ref(false);
+
+let p5Instance: p5 | null = null;
+let easycam: any = null;
+let preprocessedLandmarks: any[] = [];
+
+const { isDetecting } = storeToRefs(mediaPipeStore);
+
+// Connexions des doigts pour MediaPipe Hands
+const HAND_CONNECTIONS = [
+  // Pouce
+  [0, 1],
+  [1, 2],
+  [2, 3],
+  [3, 4],
+  // Index
+  [0, 5],
+  [5, 6],
+  [6, 7],
+  [7, 8],
+  // Majeur
+  [0, 9],
+  [9, 10],
+  [10, 11],
+  [11, 12],
+  // Annulaire
+  [0, 13],
+  [13, 14],
+  [14, 15],
+  [15, 16],
+  // Auriculaire
+  [0, 17],
+  [17, 18],
+  [18, 19],
+  [19, 20],
+  // Palm
+  [0, 5],
+  [5, 9],
+  [9, 13],
+  [13, 17],
+];
+
+onMounted(() => {
+  if (p5Container.value) {
+    initP5();
+  }
+});
+
+onUnmounted(() => {
+  if (p5Instance) {
+    p5Instance.remove();
+  }
+});
+
+const initP5 = () => {
+  const sketch = (p: p5) => {
+    let rotationX = 0;
+    let rotationY = 0;
+    let zoomLevel = 0;
+    let mousePressed = false;
+    let lastMouseX = 0;
+    let lastMouseY = 0;
+
+    p.setup = () => {
+      const canvas = p.createCanvas(640, 480, p.WEBGL);
+      canvas.parent(p5Container.value!);
+      p.strokeWeight(2);
+    };
+
+    p.draw = () => {
+      p.background(20, 25, 35);
+
+      // Application du zoom
+      p.translate(0, 0, zoomLevel);
+
+      // Contrôles souris manuels pour la rotation
+      p.rotateX(rotationX);
+      p.rotateY(rotationY);
+
+      // Grid de référence
+      drawGrid(p);
+
+      // Axes de référence
+      drawAxes(p);
+
+      // Dessiner les landmarks préprocessés si disponibles
+      if (preprocessedLandmarks.length > 0) {
+        drawHand3D(p, preprocessedLandmarks);
+      }
+    };
+
+    p.mousePressed = () => {
+      if (
+        p.mouseX >= 0 &&
+        p.mouseX <= p.width &&
+        p.mouseY >= 0 &&
+        p.mouseY <= p.height
+      ) {
+        mousePressed = true;
+        lastMouseX = p.mouseX;
+        lastMouseY = p.mouseY;
+        return false;
+      }
+    };
+
+    p.mouseReleased = () => {
+      mousePressed = false;
+      return false;
+    };
+
+    p.mouseDragged = () => {
+      if (mousePressed) {
+        const deltaX = p.mouseY - lastMouseY;
+        const deltaY = p.mouseX - lastMouseX;
+        rotationX += deltaX * 0.01;
+        rotationY += deltaY * 0.01;
+        lastMouseX = p.mouseX;
+        lastMouseY = p.mouseY;
+        return false;
+      }
+    };
+
+    p.mouseWheel = (event: any) => {
+      if (
+        p.mouseX >= 0 &&
+        p.mouseX <= p.width &&
+        p.mouseY >= 0 &&
+        p.mouseY <= p.height
+      ) {
+        // Zoom avec la molette
+        zoomLevel += event.delta * 2;
+        // Limiter le zoom
+        zoomLevel = p.constrain(zoomLevel, -800, 400);
+        return false; // Empêcher le scroll de la page
+      }
+    };
+  };
+
+  p5Instance = new p5(sketch);
+};
+
+const drawGrid = (p: p5) => {
+  p.stroke(40, 50, 60);
+  p.strokeWeight(1);
+
+  const size = 400;
+  const step = 50;
+
+  // Grille horizontale
+  for (let i = -size; i <= size; i += step) {
+    p.line(-size, 0, i, size, 0, i);
+    p.line(i, 0, -size, i, 0, size);
+  }
+};
+
+const drawAxes = (p: p5) => {
+  p.strokeWeight(3);
+
+  // Axe X (rouge) - gauche → droite
+  p.stroke(255, 0, 0);
+  p.line(0, 0, 0, 100, 0, 0);
+
+  // Axe Y (vert) - haut → bas (MediaPipe standard)
+  p.stroke(0, 255, 0);
+  p.line(0, 0, 0, 0, 100, 0);
+
+  // Axe Z (bleu) - avant → arrière (caméra → utilisateur)
+  p.stroke(0, 0, 255);
+  p.line(0, 0, 0, 0, 0, -100);
+};
+
+const drawHand3D = (p: p5, landmarks: any[]) => {
+  if (!landmarks || landmarks.length === 0) return;
+
+  // Les coordonnées sont déjà préprocessées (centrées), pas besoin de normaliser
+  const scale = 300;
+  const points3D = landmarks.map((landmark) => ({
+    x: -landmark.x * scale, // X: gauche → droite
+    y: landmark.y * scale, // Y: haut → bas (MediaPipe) = haut → bas (3D)
+    z: -landmark.z * scale, // Z: caméra → utilisateur (MediaPipe) → utilisateur → caméra (3D)
+  }));
+
+  // Dessiner les connexions
+  p.stroke(0, 255, 150);
+  p.strokeWeight(2);
+
+  for (const [start, end] of HAND_CONNECTIONS) {
+    if (points3D[start] && points3D[end]) {
+      p.line(
+        points3D[start].x,
+        points3D[start].y,
+        points3D[start].z,
+        points3D[end].x,
+        points3D[end].y,
+        points3D[end].z
+      );
+    }
+  }
+
+  // Dessiner les landmarks
+  p.fill(255, 100, 100);
+  p.noStroke();
+
+  for (const point of points3D) {
+    p.push();
+    p.translate(point.x, point.y, point.z);
+    p.sphere(2);
+    p.pop();
+  }
+
+  // Dessiner le poignet en plus gros et d'une couleur différente
+  if (points3D[0]) {
+    p.fill(255, 255, 0); // Jaune pour le poignet (origine)
+    p.push();
+    p.translate(points3D[0].x, points3D[0].y, points3D[0].z);
+    p.sphere(2);
+    p.pop();
+  }
+};
+
+// Surveiller les données préprocessées
+const updatePreprocessedData = () => {
+  // Récupérer le processor depuis le mediaPipeStore
+  const processor = mediaPipeStore.getProcessor();
+
+  if (processor && processor.getCurrentFrame) {
+    const currentFrame = processor.getCurrentFrame();
+
+    if (currentFrame && currentFrame.hands && currentFrame.hands.length > 0) {
+      // Prendre la première main détectée
+      const firstHand = currentFrame.hands[0];
+
+      if (firstHand && firstHand.landmarks) {
+        preprocessedLandmarks = firstHand.landmarks;
+        hasPreprocessedData.value = true;
+        return;
+      }
+    }
+  }
+
+  preprocessedLandmarks = [];
+  hasPreprocessedData.value = false;
+};
+
+// Surveiller les changements dans le store
+watch(
+  () => mediaPipeStore.processorVersion,
+  () => {
+    updatePreprocessedData();
+  }
+);
+
+// Mettre à jour périodiquement les données
+let updateInterval: number | null = null;
+
+watch(isDetecting, (detecting) => {
+  if (detecting) {
+    updateInterval = setInterval(updatePreprocessedData, 50); // 20 FPS
+  } else {
+    if (updateInterval) {
+      clearInterval(updateInterval);
+      updateInterval = null;
+    }
+    preprocessedLandmarks = [];
+    hasPreprocessedData.value = false;
+  }
+});
+</script>
+
+<style scoped>
+.canvas-container {
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #141925 0%, #1a1f2e 100%);
+}
+
+.p5-canvas {
+  display: block;
+}
+
+.p5-canvas canvas {
+  display: block !important;
+}
+</style>

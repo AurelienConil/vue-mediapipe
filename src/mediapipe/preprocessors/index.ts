@@ -1,1 +1,2 @@
-export { Preprocessor } from './BasePreprocessor';
+export { BasePreprocessor } from './BasePreprocessor';
+export { KalmanFilterPreprocessor } from './KalmanFilterPreprocessor';

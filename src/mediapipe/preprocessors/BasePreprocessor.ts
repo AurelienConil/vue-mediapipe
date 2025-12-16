@@ -1,51 +1,38 @@
 import type { MediaPipeFrame } from '../types';
 
-export class Preprocessor {
-    private enabled = true;
+export abstract class BasePreprocessor {
+    protected enabled = true;
+    protected description = 'No description provided';
 
-    readonly name = 'Preprocessor';
+    abstract readonly name: string;
+    abstract readonly id: string; // Identifiant unique pour chaque préprocesseur
 
-    preprocess(frame: MediaPipeFrame): MediaPipeFrame {
-        if (!this.enabled) {
-            return frame;
-        }
-
-        // TODO: Implémenter le preprocessing
-        // - Smoothing des landmarks
-        // - Normalisation des coordonnées
-        // - Reconstruction des points manquants
-        // - Unification main gauche/droite
-        // - Resampling temporel
-
-        console.log('🛠️ Preprocessing des landmarks...');
-
-        // Pour l'instant, on retourne la frame telle quelle
-        // Ici vous pourrez ajouter votre logique de preprocessing
-        const processedFrame = {
-            ...frame,
-            hands: frame.hands.map(hand => ({
-                ...hand,
-                // Exemple: normalisation simple (à remplacer par votre logique)
-                landmarks: hand.landmarks.map(landmark => ({
-                    x: landmark.x,
-                    y: landmark.y,
-                    z: landmark.z
-                }))
-            }))
-        };
-
-        return processedFrame;
-    }
+    abstract preprocess(frame: MediaPipeFrame): MediaPipeFrame;
 
     enable(): void {
         this.enabled = true;
+        console.log(`${this.name} activé`);
     }
 
-    disable(): void {
+    public disable(): void {
         this.enabled = false;
+        console.log(`${this.name} désactivé`);
     }
 
     isEnabled(): boolean {
         return this.enabled;
+    }
+
+    getDescription(): string {
+        return this.description;
+    }
+
+    setDescription(description: string): void {
+        this.description = description;
+    }
+
+    reset(): void {
+        // Méthode de réinitialisation (à surcharger si nécessaire)
+        console.log(`${this.name} réinitialisé`);
     }
 }

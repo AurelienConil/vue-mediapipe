@@ -15,17 +15,17 @@
 
     <!-- Contrôles de filtrage -->
     <div class="pa-2">
-      <!-- Select de filtre principal -->
+      <!-- Filtre par catégories -->
       <v-select
-        v-model="filterMode"
-        :items="filterOptions"
+        v-model="selectedCategory"
+        :items="categoryOptions"
         item-title="label"
         item-value="value"
         density="compact"
         variant="outlined"
         hide-details
         class="mb-2"
-        @update:model-value="onFilterChange"
+        label="Filtrer par catégorie"
       >
         <template v-slot:selection="{ item }">
           <v-icon size="x-small" class="mr-1">{{ item.raw.icon }}</v-icon>
@@ -40,8 +40,8 @@
         </template>
       </v-select>
 
-      <!-- Filtres spécifiques selon le mode sélectionné -->
-      <div v-if="filterMode === 'finger'" class="filter-chips">
+      <!-- Filtre par doigts (toujours visible) -->
+      <div class="filter-chips">
         <div class="text-caption mb-1">Doigts:</div>
         <div class="d-flex flex-wrap ga-1">
           <v-chip
@@ -57,26 +57,6 @@
               {{ getFingerIcon(finger) }}
             </v-icon>
             {{ getFingerLabel(finger) }}
-          </v-chip>
-        </div>
-      </div>
-
-      <div v-if="filterMode === 'category'" class="filter-chips">
-        <div class="text-caption mb-1">Catégories:</div>
-        <div class="d-flex flex-wrap ga-1">
-          <v-chip
-            v-for="category in availableCategories"
-            :key="category"
-            size="small"
-            :color="selectedCategories.has(category) ? 'primary' : 'grey'"
-            :variant="selectedCategories.has(category) ? 'flat' : 'outlined'"
-            clickable
-            @click="toggleCategory(category)"
-          >
-            <v-icon size="x-small" class="mr-1">
-              {{ getCategoryIcon(category) }}
-            </v-icon>
-            {{ formatCategoryName(category) }}
           </v-chip>
         </div>
       </div>
@@ -156,13 +136,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick, computed } from "vue";
+import { ref, onMounted, onUnmounted, nextTick, computed, watch } from "vue";
 import type { Feature, Finger } from "../mediapipe/types";
 import { FeatureStore } from "../stores/FeatureStore";
 
 // Props
 interface Props {
   featureStore: FeatureStore;
+  processorVersion?: number;
 }
 const props = defineProps<Props>();
 
@@ -173,16 +154,34 @@ const graphHistory = ref<Map<string, number[]>>(new Map());
 const maxHistoryLength = 50; // Nombre de points dans le graphique
 
 // Système de filtrage
-type FilterMode = 'all' | 'finger' | 'category' | 'favorites';
-const filterMode = ref<FilterMode>('all');
+type CategoryFilter = "all" | "favorites" | string; // string pour les catégories spécifiques
+const selectedCategory = ref<CategoryFilter>("all");
 
-// Options de filtrage
-const filterOptions = computed(() => [
-  { label: 'Toutes les features', value: 'all', icon: 'mdi-view-list' },
-  { label: 'Par doigt', value: 'finger', icon: 'mdi-hand' },
-  { label: 'Par catégorie', value: 'category', icon: 'mdi-folder' },
-  { label: 'Favoris', value: 'favorites', icon: 'mdi-star' },
-]);
+// Options de filtrage par catégories
+const categoryOptions = computed(() => {
+  const options = [
+    { label: "Aucun filtre", value: "all", icon: "mdi-view-list" },
+    { label: "Favoris", value: "favorites", icon: "mdi-star" },
+  ];
+
+  // Ajouter les catégories disponibles
+  const categories = new Set<string>();
+  for (const [, feature] of features.value) {
+    if (feature.parents) {
+      categories.add(feature.parents);
+    }
+  }
+
+  for (const category of Array.from(categories).sort()) {
+    options.push({
+      label: formatCategoryName(category),
+      value: category,
+      icon: getCategoryIcon(category),
+    });
+  }
+
+  return options;
+});
 
 // Filtrage par doigts
 const availableFingers: Finger[] = [
@@ -194,7 +193,7 @@ const availableFingers: Finger[] = [
 ];
 const selectedFingers = ref<Set<Finger>>(new Set(availableFingers)); // Tous sélectionnés par défaut
 
-// Filtrage par catégories
+// Filtrage par catégories (pour compatibilité avec l'ancien code)
 const availableCategories = computed(() => {
   const categories = new Set<string>();
   for (const [, feature] of features.value) {
@@ -204,7 +203,6 @@ const availableCategories = computed(() => {
   }
   return Array.from(categories).sort();
 });
-const selectedCategories = ref<Set<string>>(new Set());
 
 // Système de favoris
 const favorites = ref<Set<string>>(new Set());
@@ -217,38 +215,21 @@ const filteredFeatures = computed(() => {
   const filtered = new Map<string, Feature>();
 
   for (const [key, feature] of features.value) {
-    let shouldInclude = false;
+    let shouldInclude = true;
 
-    switch (filterMode.value) {
-      case 'all':
-        shouldInclude = true;
-        break;
-        
-      case 'finger':
-        // Toujours afficher les features sans finger défini
-        if (!feature.finger) {
-          shouldInclude = true;
-        }
-        // Afficher les features dont le finger est sélectionné
-        else if (selectedFingers.value.has(feature.finger)) {
-          shouldInclude = true;
-        }
-        break;
-        
-      case 'category':
-        // Afficher les features dont la catégorie est sélectionnée
-        if (feature.parents && selectedCategories.value.has(feature.parents)) {
-          shouldInclude = true;
-        }
-        // Si aucune catégorie n'est sélectionnée, afficher toutes
-        else if (selectedCategories.value.size === 0) {
-          shouldInclude = true;
-        }
-        break;
-        
-      case 'favorites':
+    // Filtre par doigts (toujours appliqué)
+    if (feature.finger && !selectedFingers.value.has(feature.finger)) {
+      shouldInclude = false;
+    }
+
+    // Filtre par catégorie (si sélectionné)
+    if (shouldInclude && selectedCategory.value !== "all") {
+      if (selectedCategory.value === "favorites") {
         shouldInclude = favorites.value.has(key);
-        break;
+      } else {
+        // Catégorie spécifique
+        shouldInclude = feature.parents === selectedCategory.value;
+      }
     }
 
     if (shouldInclude) {
@@ -260,16 +241,6 @@ const filteredFeatures = computed(() => {
 });
 
 // Méthodes pour le filtrage
-const onFilterChange = (newMode: FilterMode) => {
-  filterMode.value = newMode;
-  
-  // Initialiser les filtres selon le mode
-  if (newMode === 'category' && selectedCategories.value.size === 0) {
-    // Sélectionner toutes les catégories par défaut
-    selectedCategories.value = new Set(availableCategories.value);
-  }
-};
-
 const toggleFinger = (finger: Finger) => {
   if (selectedFingers.value.has(finger)) {
     selectedFingers.value.delete(finger);
@@ -280,16 +251,6 @@ const toggleFinger = (finger: Finger) => {
   selectedFingers.value = new Set(selectedFingers.value);
 };
 
-const toggleCategory = (category: string) => {
-  if (selectedCategories.value.has(category)) {
-    selectedCategories.value.delete(category);
-  } else {
-    selectedCategories.value.add(category);
-  }
-  // Déclencher la réactivité
-  selectedCategories.value = new Set(selectedCategories.value);
-};
-
 const toggleFavorite = (featureKey: string) => {
   if (favorites.value.has(featureKey)) {
     favorites.value.delete(featureKey);
@@ -298,23 +259,26 @@ const toggleFavorite = (featureKey: string) => {
   }
   // Déclencher la réactivité
   favorites.value = new Set(favorites.value);
-  
+
   // Sauvegarder les favoris dans localStorage
   saveFavorites();
 };
 
 const saveFavorites = () => {
-  localStorage.setItem('featuresFavorites', JSON.stringify(Array.from(favorites.value)));
+  localStorage.setItem(
+    "featuresFavorites",
+    JSON.stringify(Array.from(favorites.value))
+  );
 };
 
 const loadFavorites = () => {
   try {
-    const saved = localStorage.getItem('featuresFavorites');
+    const saved = localStorage.getItem("featuresFavorites");
     if (saved) {
       favorites.value = new Set(JSON.parse(saved));
     }
   } catch (error) {
-    console.warn('Erreur lors du chargement des favoris:', error);
+    console.warn("Erreur lors du chargement des favoris:", error);
   }
 };
 
@@ -342,18 +306,30 @@ const getFingerLabel = (finger: Finger): string => {
 
 const getCategoryIcon = (category: string): string => {
   // Icônes basées sur les noms des extracteurs
-  if (category.toLowerCase().includes('distance')) return 'mdi-ruler';
-  if (category.toLowerCase().includes('velocity') || category.toLowerCase().includes('accel')) return 'mdi-speedometer';
-  if (category.toLowerCase().includes('orientation') || category.toLowerCase().includes('angle')) return 'mdi-rotate-3d';
-  if (category.toLowerCase().includes('size') || category.toLowerCase().includes('normalize')) return 'mdi-resize';
-  return 'mdi-cog';
+  if (category.toLowerCase().includes("distance")) return "mdi-ruler";
+  if (
+    category.toLowerCase().includes("velocity") ||
+    category.toLowerCase().includes("accel")
+  )
+    return "mdi-speedometer";
+  if (
+    category.toLowerCase().includes("orientation") ||
+    category.toLowerCase().includes("angle")
+  )
+    return "mdi-rotate-3d";
+  if (
+    category.toLowerCase().includes("size") ||
+    category.toLowerCase().includes("normalize")
+  )
+    return "mdi-resize";
+  return "mdi-cog";
 };
 
 const formatCategoryName = (category: string): string => {
   return category
-    .replace(/([A-Z])/g, ' $1')
+    .replace(/([A-Z])/g, " $1")
     .trim()
-    .replace(/^./, str => str.toUpperCase());
+    .replace(/^./, (str) => str.toUpperCase());
 };
 
 // Update features from store
@@ -429,14 +405,14 @@ const getFeatureIcon = (feature: Feature): string => {
 
 // Update graph history and redraw
 const updateGraph = (key: string, feature: Feature) => {
-  console.log(`🎯 UpdateGraph appelé pour ${key}:`, feature);
+  //console.log(`🎯 UpdateGraph appelé pour ${key}:`, feature);
 
   if (feature.display !== "Graph" || typeof feature.value !== "number") {
-    console.log(
-      `❌ Feature ${key} pas éligible:`,
-      feature.display,
-      typeof feature.value
-    );
+    // console.log(
+    //   `❌ Feature ${key} pas éligible:`,
+    //   feature.display,
+    //   typeof feature.value
+    // );
     return;
   }
 
@@ -465,7 +441,7 @@ const drawGraph = (key: string, data: number[], minMax: [number, number]) => {
     return;
   }
 
-  console.log(`📊 Dessin du graphique pour ${key}, ${data.length} points`);
+  //console.log(`📊 Dessin du graphique pour ${key}, ${data.length} points`);
 
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -531,6 +507,20 @@ const drawGraph = (key: string, data: number[], minMax: [number, number]) => {
 
 // Polling interval
 let pollInterval: NodeJS.Timeout;
+
+// Watcher pour réinitialiser lorsque le processor change
+watch(
+  () => props.processorVersion,
+  () => {
+    console.log("Processor changé, réinitialisation du FeaturesMonitor");
+    // Forcer la mise à jour des features
+    updateFeatures();
+
+    // Réinitialiser l'historique des graphiques
+    graphHistory.value.clear();
+    console.log("Historique des graphiques réinitialisé");
+  }
+);
 
 onMounted(() => {
   updateFeatures();

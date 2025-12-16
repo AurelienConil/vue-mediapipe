@@ -6,7 +6,7 @@ export { EventHistory } from './core/EventHistory';
 export { MediaPipeProcessor } from './core/MediaPipeProcessor';
 
 // Base classes
-export { Preprocessor } from './preprocessors/BasePreprocessor';
+export { BasePreprocessor } from './preprocessors/BasePreprocessor';
 export { BaseFeatureExtractor } from './extractors/BaseFeatureExtractor';
 export { BaseAnalyzer } from './analyzers/BaseAnalyzer';
 

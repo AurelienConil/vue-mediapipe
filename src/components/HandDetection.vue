@@ -104,7 +104,6 @@ const startCamera = async () => {
       onFrame: async () => {
         const currentHands = mediaPipeStore.getHandsInstance();
         if (currentHands && videoRef.value) {
-          console.log("Envoi de frame à MediaPipe");
           await currentHands.send({ image: videoRef.value });
         }
       },
@@ -138,7 +137,7 @@ const stopCamera = () => {
 watch(
   results,
   (newResults) => {
-    console.log("Nouveau résultat reçu:", newResults);
+    //console.log("Nouveau résultat reçu:", newResults);
 
     if (newResults && canvasRef.value) {
       const canvasCtx = canvasRef.value.getContext("2d")!;
@@ -151,10 +150,6 @@ watch(
         newResults.multiHandLandmarks &&
         newResults.multiHandLandmarks.length > 0
       ) {
-        console.log(
-          `Dessin de ${newResults.multiHandLandmarks.length} main(s)`
-        );
-
         for (const landmarks of newResults.multiHandLandmarks) {
           // Dessiner les connexions (squelette)
           drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {
