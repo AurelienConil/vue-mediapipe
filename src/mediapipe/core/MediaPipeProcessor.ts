@@ -1,8 +1,7 @@
 import type { MediaPipeFrame, HandData } from '../types';
 import { useFeatureStore } from '../../stores/FeatureStore';
 import { useCoreStore } from '../../stores/CoreStore';
-import { EventBus } from './EventBus';
-import { EventHistory } from './EventHistory';
+import { eventBus, eventHistory } from '../../stores/eventBusStore';
 import type { BaseFeatureExtractor } from '../extractors/BaseFeatureExtractor';
 import type { BaseAnalyzer } from '../analyzers/BaseAnalyzer';
 import { BasePreprocessor } from '../preprocessors/BasePreprocessor';
@@ -10,12 +9,11 @@ import { Analyzers } from '../analyzers/Analyzers';
 
 export class MediaPipeProcessor {
     private featureStore = useFeatureStore();
-    private eventHistory = new EventHistory();
-    private eventBus = new EventBus(this.eventHistory);
+    private eventHistory = eventHistory;
+    private eventBus = eventBus;
     private coreStore = useCoreStore();
     private preprocessors: BasePreprocessor[] = [];
     private extractors: BaseFeatureExtractor[] = [];
-    private analyzers: BaseAnalyzer[] = [];
     private analyzersManager = new Analyzers();
     private analyzersInitialized = false;
     private currentFrame: MediaPipeFrame | null = null;
@@ -41,9 +39,7 @@ export class MediaPipeProcessor {
         };
     }
 
-    addAnalyzer(analyzer: BaseAnalyzer): void {
-        this.analyzers.push(analyzer);
-    }
+
 
     getFeatureStore(): FeatureStore {
         return this.featureStore;
@@ -68,6 +64,7 @@ export class MediaPipeProcessor {
     processFrame(results: any): void {
         // Initialisation des analyzers si ce n'est pas déjà fait
         if (!this.analyzersInitialized) {
+
             this.analyzersManager.init(this.featureStore);
             this.analyzersInitialized = true;
         }
@@ -95,9 +92,9 @@ export class MediaPipeProcessor {
 
         // 4. Run extractors (seulement si exactement 1 main détectée)
         if (frame.hands.length === 0) {
-            console.log('Aucune main détectée - extraction annulée');
+            //console.log('Aucune main détectée - extraction annulée');
         } else if (frame.hands.length > 1) {
-            console.log(`${frame.hands.length} mains détectées - extraction annulée (seulement 1 main supportée)`);
+            //console.log(`${frame.hands.length} mains détectées - extraction annulée (seulement 1 main supportée)`);
         } else {
             // Exécuter TOUS les extractors - calculs toujours actifs
             //console.log(`🔍 Exécution de ${this.extractors.length} extractors (1 main détectée)`);
@@ -114,9 +111,10 @@ export class MediaPipeProcessor {
             });
 
             // 5. Run analyzers
-            //console.log(`🧠 Exécution de ${this.analyzers.length} analyzers`);
-            this.analyzers.forEach(analyzer => {
+            console.log(`🧠 Exécution de ${this.analyzersManager.getAnalyzers().length} analyzers`);
+            this.analyzersManager.getAnalyzers().forEach(analyzer => {
                 if (analyzer.isEnabled()) {
+                    console.log(`⚙️ Exécution analyzer: ${analyzer.name} (enabled: ${analyzer.isEnabled()})`);
                     analyzer.analyze();
                 }
             });

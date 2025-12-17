@@ -4,9 +4,9 @@ import { EventBus } from '../mediapipe/core/EventBus';
 import { EventHistory } from '../mediapipe/core/EventHistory';
 import type { Event } from '../mediapipe/types';
 
-// Singleton EventBus instance
-const eventHistory = new EventHistory();
-const eventBus = new EventBus(eventHistory);
+// Singleton EventBus instance, exportée pour tout le projet
+export const eventHistory = new EventHistory();
+export const eventBus = new EventBus(eventHistory);
 
 export const useEventBusStore = defineStore('eventBus', () => {
     const lastEvent = ref<Event | null>(null);
@@ -21,7 +21,6 @@ export const useEventBusStore = defineStore('eventBus', () => {
     }
 
     return {
-        eventBus,
         lastEvent,
         clearEvent
     };

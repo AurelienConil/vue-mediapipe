@@ -1,5 +1,4 @@
-import { EventBus } from '../core/EventBus';
-import { EventHistory } from '../core/EventHistory';
+import { eventBus, eventHistory } from '../../stores/eventBusStore';
 import { TapTipDetection } from './tapTipDetection';
 import type { FeatureStore } from '../../stores/FeatureStore';
 
@@ -9,19 +8,17 @@ import type { FeatureStore } from '../../stores/FeatureStore';
  */
 export class Analyzers {
     private analyzers: any[] = [];
-    private eventBus: EventBus;
-    private eventHistory: EventHistory;
+    private eventBus = eventBus;
+    private eventHistory = eventHistory;
 
-    constructor() {
-        this.eventHistory = new EventHistory();
-        this.eventBus = new EventBus(this.eventHistory);
-    }
+    constructor() {}
 
     /**
      * Initialise tous les analyzers avec le FeatureStore fourni.
      */
     init(featureStore: FeatureStore) {
         // Instancie ici tous les analyzers
+        console.log('Initializing Analyzers...');
         this.analyzers.push(new TapTipDetection(featureStore, this.eventBus, this.eventHistory));
         // ...ajoute d'autres analyzers ici si besoin
     }
@@ -32,5 +29,9 @@ export class Analyzers {
 
     getEventHistory() {
         return this.eventHistory;
+    }
+
+    getAnalyzers() {
+        return this.analyzers;
     }
 }

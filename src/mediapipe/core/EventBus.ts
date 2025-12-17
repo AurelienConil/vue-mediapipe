@@ -14,7 +14,7 @@ export class EventBus {
 
     emit(event: Event): void {
         // Ajoute à l'historique
-        this.eventHistory.add(event);
+        //this.eventHistory.add(event);
         // Notifie les listeners du type spécifique
         const listeners = this.listeners.get(event.type) || [];
         listeners.forEach(cb => cb(event));
