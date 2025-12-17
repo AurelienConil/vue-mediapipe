@@ -26,11 +26,6 @@
         hide-details
         class="mb-2"
         label="Filtrer par catégorie"
-        @update:menu="
-          (open) => {
-            if (open) refreshCategories();
-          }
-        "
       >
         <template v-slot:selection="{ item }">
           <v-icon size="x-small" class="mr-1">{{ item.raw.icon }}</v-icon>
@@ -69,7 +64,7 @@
 
     <v-divider />
 
-    <div class="features-grid mt-1">
+    <div class="features-grid mt-1" v-if="selectedCategory !== 'none'">
       <div
         v-for="[key, feature] in filteredFeatures"
         :key="key"
@@ -80,15 +75,12 @@
           <v-icon :color="getFeatureColor(feature)" size="x-small" class="mr-1">
             {{ getFeatureIcon(feature) }}
           </v-icon>
-          <Tooltip
-            :content="feature.name"
-            :delay="500"
-             placement="top-start">
+          <Tooltip :content="feature.name" :delay="500" placement="top-start">
             <span class="feature-name text-caption">{{
               formatFeatureName(feature.name)
             }}</span>
-          <v-spacer />
-         </Tooltip>
+            <v-spacer />
+          </Tooltip>
           <v-btn
             :icon="favorites.has(key) ? 'mdi-star' : 'mdi-star-outline'"
             :color="favorites.has(key) ? 'yellow-darken-3' : 'grey'"
@@ -110,20 +102,20 @@
 
         <!-- Feature Display -->
         <div class="feature-display mt-1">
-          <!-- Number Display -->
-          <FeatureNumberDisplay
-            v-if="feature.display === 'Number' || !feature.display"
-            :feature="feature"
-          />
-
-          <!-- Graph Display -->
+          <!-- Graph Display (only for favorites with displayType, and not in 'aucun filtre') -->
           <FeatureChart
-            v-else-if="feature.display === 'Graph'"
+            v-if="
+              feature.display &&
+              favorites.has(key) &&
+              selectedCategory !== 'none'
+            "
             :feature="feature"
             :feature-key="key"
             :width="250"
             :height="30"
           />
+          <!-- Number Display -->
+          <FeatureNumberDisplay v-else :feature="feature" />
         </div>
       </div>
     </div>
@@ -149,13 +141,13 @@ const storeFeatures = computed(() => featureStore.getAllFeatures());
 const totalFeatures = computed(() => storeFeatures.value?.size || 0);
 
 // Système de filtrage
-type CategoryFilter = "all" | "favorites" | string; // string pour les catégories spécifiques
-const selectedCategory = ref<CategoryFilter>("all");
+type CategoryFilter = "none" | "favorites" | string; // string pour les catégories spécifiques
+const selectedCategory = ref<CategoryFilter>("none");
 
 // Catégories dynamiques, toujours à jour grâce à la réactivité
 const categoryOptions = computed(() => {
   const options = [
-    { label: "Aucun filtre", value: "all", icon: "mdi-view-list" },
+    { label: "Aucun", value: "none", icon: "mdi-view-list" },
     { label: "Favoris", value: "favorites", icon: "mdi-star" },
   ];
   const categories = new Set<string>();
@@ -220,7 +212,7 @@ const filteredFeatures = computed(() => {
     if (feature.finger && !selectedFingers.value.has(feature.finger)) {
       shouldInclude = false;
     }
-    if (shouldInclude && selectedCategory.value !== "all") {
+    if (shouldInclude && selectedCategory.value !== "none") {
       if (selectedCategory.value === "favorites") {
         if (!favorites.value.has(key)) {
           shouldInclude = false;

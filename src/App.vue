@@ -6,6 +6,8 @@ import CoreStatusMonitor from "./components/CoreStatusMonitor.vue";
 import PreprocessorControl from "./components/PreprocessorControl.vue";
 import Preprocessor from "./components/Preprocessor.vue";
 import { useMediaPipeStore } from "@/stores/mediapipe";
+import { useCoreStore } from "@/stores/coreStore";
+const coreStore = useCoreStore();
 import EventDisplay from "./components/EventDisplay.vue";
 
 const mediaPipeStore = useMediaPipeStore();
@@ -74,10 +76,12 @@ const showPreprocessorControl = computed(
     <v-app-bar color="primary" dark>
       <v-app-bar-title>
         <v-icon left>mdi-hand-wave</v-icon>
-        Vue 3 + MediaPipe - Détection de Main
+        VuePipe 
       </v-app-bar-title>
 
       <v-spacer></v-spacer>
+
+      {{ coreStore.averageFps.toFixed(1) }} FPS
 
       <!-- Navigation par icônes -->
       <v-btn-toggle
@@ -141,7 +145,7 @@ const showPreprocessorControl = computed(
           <v-col
             cols="6"
             class="pr-2"
-            :style="{ display: showPreprocessor ? 'block' : 'none' }"
+            v-if="showPreprocessor"
           >
             <Preprocessor />
           </v-col>

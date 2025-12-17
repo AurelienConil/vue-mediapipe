@@ -86,6 +86,7 @@ let preprocessedLandmarks: any[] = [];
 let resetCameraCallback: (() => void) | null = null;
 let isP5Initialized = false;
 let isMounted = false;
+let updateInterval: number | null = null;
 
 const { isDetecting } = storeToRefs(mediaPipeStore);
 
@@ -125,20 +126,32 @@ const HAND_CONNECTIONS = [
 
 onMounted(async () => {
   isMounted = true;
+
   await nextTick();
-  if (p5Container.value && !isP5Initialized) {
+  // Toujours réinitialiser l'état
+  if (p5Instance) {
+    try {
+      p5Instance.remove();
+    } catch (e) {}
+    p5Instance = null;
+    isP5Initialized = false;
+  }
+  if (updateInterval) {
+    clearInterval(updateInterval);
+    updateInterval = null;
+  }
+  if (p5Container.value) {
     initP5();
   }
 });
 
 onUnmounted(() => {
   isMounted = false;
+  console.log("Unmount p5js");
   cleanup();
 });
 
 const cleanup = () => {
-  isMounted = false;
-
   if (p5Instance) {
     try {
       p5Instance.remove();
@@ -149,12 +162,12 @@ const cleanup = () => {
   }
   isP5Initialized = false;
   resetCameraCallback = null;
-
-  // Nettoyer l'interval s'il existe
   if (updateInterval) {
     clearInterval(updateInterval);
     updateInterval = null;
   }
+  preprocessedLandmarks = [];
+  hasPreprocessedData.value = false;
 };
 
 // Clé pour localStorage
@@ -456,20 +469,12 @@ const updatePreprocessedData = () => {
   }
 };
 
-// Surveiller les changements dans le store
-watch(
-  () => mediaPipeStore.processorVersion,
-  () => {
-    if (isMounted && isP5Initialized && p5Container.value) {
-      updatePreprocessedData();
-    }
-  },
-  { flush: "post" }
-);
+// Surveiller les changements de frame (nouvelle frame = nouvelle main potentielle)
+watch(() => mediaPipeStore.frameCount, updatePreprocessedData, {
+  flush: "post",
+});
 
-// Mettre à jour périodiquement les données
-let updateInterval: number | null = null;
-
+// Watcher pour démarrer/arrêter l'intervalle de mise à jour selon isDetecting
 watch(
   isDetecting,
   (detecting) => {
@@ -479,23 +484,20 @@ watch(
           clearInterval(updateInterval);
         }
         updateInterval = window.setInterval(() => {
-          // Vérifier que le composant existe encore avant la mise à jour
           if (isMounted && isP5Initialized && p5Container.value) {
             updatePreprocessedData();
           } else if (updateInterval) {
             clearInterval(updateInterval);
             updateInterval = null;
           }
-        }, 50); // 20 FPS
+        }, 50);
       } else {
         if (updateInterval) {
           clearInterval(updateInterval);
           updateInterval = null;
         }
-        if (isMounted) {
-          preprocessedLandmarks = [];
-          hasPreprocessedData.value = false;
-        }
+        preprocessedLandmarks = [];
+        hasPreprocessedData.value = false;
       }
     } catch (error) {
       console.warn("Erreur dans le watcher isDetecting:", error);
