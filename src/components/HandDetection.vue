@@ -87,7 +87,6 @@ onMounted(async () => {
   });
   //fix async because we delete the await
 
-  
   console.log("MediaPipe initialisé:", isInitialized.value);
   //start camera  when mediapipe is initialized
 });
@@ -143,33 +142,30 @@ const stopCamera = () => {
 };
 
 // Dessiner les landmarks de la main
-watch(
-  results,
-  (newResults) => {
-    if (newResults && canvasRef.value) {
-      const canvasCtx = canvasRef.value.getContext("2d")!;
-      canvasCtx.save();
-      canvasCtx.clearRect(0, 0, canvasRef.value.width, canvasRef.value.height);
-      if (
-        newResults.multiHandLandmarks &&
-        newResults.multiHandLandmarks.length > 0
-      ) {
-        for (const landmarks of newResults.multiHandLandmarks) {
-          drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {
-            color: "#00FF00",
-            lineWidth: 3,
-          });
-          drawLandmarks(canvasCtx, landmarks, {
-            color: "#FF0000",
-            lineWidth: 2,
-            radius: 4,
-          });
-        }
+watch(results, (newResults) => {
+  if (newResults && canvasRef.value) {
+    const canvasCtx = canvasRef.value.getContext("2d")!;
+    canvasCtx.save();
+    canvasCtx.clearRect(0, 0, canvasRef.value.width, canvasRef.value.height);
+    if (
+      newResults.multiHandLandmarks &&
+      newResults.multiHandLandmarks.length > 0
+    ) {
+      for (const landmarks of newResults.multiHandLandmarks) {
+        drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {
+          color: "#00FF00",
+          lineWidth: 3,
+        });
+        drawLandmarks(canvasCtx, landmarks, {
+          color: "#FF0000",
+          lineWidth: 2,
+          radius: 4,
+        });
       }
-      canvasCtx.restore();
     }
+    canvasCtx.restore();
   }
-);
+});
 
 onUnmounted(() => {
   stopCamera();
