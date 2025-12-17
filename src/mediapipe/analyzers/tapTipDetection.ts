@@ -23,7 +23,7 @@ export class TapTipDetection extends BaseAnalyzer {
     private fingers: FingerName[] = ['index', 'middle', 'ring', 'pinky'];
     private fingerBuffers: Map<FingerName, FingerBuffers> = new Map();
     private lastFingerTapTimestamps: Map<FingerName, number> = new Map();
-    private cooldownPeriod: number = 500; // 7 frames * 50ms = 350ms cooldown
+    private cooldownPeriod: number = 250; // 7 frames * 50ms = 350ms cooldown
 
     constructor(featureStore: FeatureStore) {
         super(featureStore, eventBus, eventHistory);
@@ -164,19 +164,19 @@ export class TapTipDetection extends BaseAnalyzer {
         // Speed of the distance
         const distanceCondition =
             distanceStart < 0.3 &&
-            distancePeak > 0.3 &&
+            distancePeak > 0.5 &&
             distanceEnd < 0.3;
         // Angular speed condition
         const angularCondition =
             Math.abs(angularStart) < 4.0 &&
-            angularDip < -4 &&
+            angularDip < -6 &&
             Math.abs(angularEnd) < 4.0;
 
         // Proximity condition: thumb must be very close to finger
         const proximityCondition = thumbToFingerDistance < 0.05;
 
         //il faut au moins 2 conditions vraies pour valider le tap
-        const conditionsMet = [distanceCondition, angularCondition, proximityCondition].filter(Boolean).length >= 2;
+        const conditionsMet = [distanceCondition, angularCondition, proximityCondition].filter(Boolean).length >= 3;
 
         return conditionsMet;
     }
