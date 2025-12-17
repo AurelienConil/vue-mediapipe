@@ -6,6 +6,7 @@
 import { BasePreprocessor } from './BasePreprocessor';
 import { KalmanFilterPreprocessor } from './KalmanFilterPreprocessor';
 import { CenterPreprocessor } from './centerPreprocessors';
+import { NormalisePreprocessor } from './NormalisePreprocessor';
 
 // Interface pour décrire un préprocesseur disponible
 export interface AvailablePreprocessor {
@@ -18,12 +19,19 @@ export interface AvailablePreprocessor {
 
 // Liste des préprocesseurs disponibles
 export const availablePreprocessors: AvailablePreprocessor[] = [
-        {
+    {
         id: 'center',
         name: 'Center Preprocessor',
         description: 'Center on 0,0,0 origin',
         enabled: true,
         instance: new CenterPreprocessor()
+    },
+    {
+        id: 'normalise',
+        name: 'Normalise Preprocessor',
+        description: 'Normalise la taille de la main (distance 5-17 = 1)',
+        enabled: true,
+        instance: new NormalisePreprocessor()
     },
     {
         id: 'kalman-filter',
