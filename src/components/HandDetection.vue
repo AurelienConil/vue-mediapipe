@@ -118,6 +118,7 @@ const startCamera = async () => {
       width: 640,
       height: 480,
       facingMode: "user",
+
     });
 
     console.log("Démarrage de la caméra...");

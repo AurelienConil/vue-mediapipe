@@ -2,7 +2,6 @@
   <div class="number-display">
     <v-progress-linear
       :model-value="normalizedValue"
-      :color="getFeatureColor(feature)"
       height="12"
       rounded
     >
