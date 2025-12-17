@@ -11,7 +11,7 @@ export class Analyzers {
     private eventBus = eventBus;
     private eventHistory = eventHistory;
 
-    constructor() {}
+    constructor() { }
 
     /**
      * Initialise tous les analyzers avec le FeatureStore fourni.
