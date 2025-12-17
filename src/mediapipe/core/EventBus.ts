@@ -11,28 +11,49 @@ export class EventBus {
         this.eventHistory = eventHistory;
     }
 
+
     emit(event: Event): void {
-        // TODO: Add event to history and notify listeners
+        // Ajoute à l'historique
+        this.eventHistory.add(event);
+        // Notifie les listeners du type spécifique
+        const listeners = this.listeners.get(event.type) || [];
+        listeners.forEach(cb => cb(event));
+        // Notifie les listeners wildcard '*'
+        const allListeners = this.listeners.get('*') || [];
+        allListeners.forEach(cb => cb(event));
     }
 
     on(eventType: string, callback: EventCallback): void {
-        // TODO: Subscribe to event type
+        if (!this.listeners.has(eventType)) {
+            this.listeners.set(eventType, []);
+        }
+        this.listeners.get(eventType)!.push(callback);
     }
 
     off(eventType: string, callback: EventCallback): void {
-        // TODO: Unsubscribe from event type
+        const callbacks = this.listeners.get(eventType);
+        if (!callbacks) return;
+        const idx = callbacks.indexOf(callback);
+        if (idx > -1) callbacks.splice(idx, 1);
     }
 
     once(eventType: string, callback: EventCallback): void {
-        // TODO: Subscribe once to event type
+        const wrapper: EventCallback = (event) => {
+            callback(event);
+            this.off(eventType, wrapper);
+        };
+        this.on(eventType, wrapper);
     }
 
     removeAllListeners(eventType?: string): void {
-        // TODO: Remove all listeners for event type or all
+        if (eventType) {
+            this.listeners.delete(eventType);
+        } else {
+            this.listeners.clear();
+        }
     }
 
     getListenerCount(eventType: string): number {
-        // TODO: Get number of listeners for event type
-        return 0;
+        return (this.listeners.get(eventType) || []).length;
     }
 }

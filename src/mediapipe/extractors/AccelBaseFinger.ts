@@ -12,167 +12,153 @@ interface FingerVelocityData {
 export class AccelBaseFinger extends BaseFeatureExtractor {
     readonly name = 'AccelBaseFinger';
 
-    // Configuration des doigts : [base, tip]
-    private readonly fingerConfig: Record<Finger, { base: number; tip: number }> = {
-        thumb: { base: 1, tip: 4 },    // Pouce
-        index: { base: 5, tip: 6 },    // Index
-        middle: { base: 9, tip: 10 },  // Majeur
-        ring: { base: 13, tip: 14 },   // Annulaire
-        pinky: { base: 17, tip: 18 }   // Auriculaire
+    // Pour chaque doigt, indices des segments base et tip : [baseStart, baseEnd, tipStart, tipEnd]
+    private readonly fingerSegments: Record<Finger, [number, number, number, number]> = {
+        thumb: [1, 2, 3, 4],
+        index: [5, 6, 7, 8],
+        middle: [9, 10, 11, 12],
+        ring: [13, 14, 15, 16],
+        pinky: [17, 18, 19, 20]
     };
 
-    // Historique pour calculer vitesse et accélération
-    private previousData = new Map<string, FingerVelocityData>();
-    private previousVelocity = new Map<string, { velocity: number; acceleration: number; timestamp: number }>();
+    // Historique pour calculer angle, vitesse angulaire et accélération angulaire
+    private previousAngle = new Map<string, { angle: number; timestamp: number }>();
+    private previousAngularVelocity = new Map<string, { velocity: number; acceleration: number; timestamp: number }>();
 
     extract(frame: MediaPipeFrame, featureStore: FeatureStore): Feature[] {
         const features: Feature[] = [];
 
         for (const hand of frame.hands) {
-            for (const [fingerName, config] of Object.entries(this.fingerConfig)) {
-                const basePoint = hand.landmarks[config.base];
-                const tipPoint = hand.landmarks[config.tip];
+            for (const [fingerName, segmentIdxs] of Object.entries(this.fingerSegments)) {
+                const [baseStartIdx, baseEndIdx, tipStartIdx, tipEndIdx] = segmentIdxs;
+                const baseStart = hand.landmarks[baseStartIdx];
+                const baseEnd = hand.landmarks[baseEndIdx];
+                const tipStart = hand.landmarks[tipStartIdx];
+                const tipEnd = hand.landmarks[tipEndIdx];
 
-                if (basePoint && tipPoint) {
-                    const relativePosition = this.calculateRelativePosition(tipPoint, basePoint);
-                    const velocityData = this.calculateVelocity(relativePosition, frame.timestamp, fingerName, hand.handedness);
+                if (baseStart && baseEnd && tipStart && tipEnd) {
+                    // Vecteurs des segments projetés sur le plan XY
+                    const baseVec = {
+                        x: baseEnd.x - baseStart.x,
+                        y: baseEnd.y - baseStart.y
+                    };
+                    const tipVec = {
+                        x: tipEnd.x - tipStart.x,
+                        y: tipEnd.y - tipStart.y
+                    };
 
-                    if (velocityData) {
-                        // Feature vitesse
-                        features.push({
-                            name: `${fingerName}_base_velocity`,
-                            type: 'number',
-                            value: velocityData.speed,
-                            parents: this.name,
-                            display: 'Graph',
-                            minMax: [0, 2], // Vitesse normalisée
-                            timestamp: frame.timestamp,
-                            hand: hand.handedness,
-                            finger: fingerName as Finger
-                        });
+                    // Calcul de l'angle entre les deux segments (en radians)
+                    const angle = this.calculateAngle2D(baseVec, tipVec);
 
-                        // Calculer et ajouter l'accélération
-                        const accelerationData = this.calculateAcceleration(velocityData.speed, frame.timestamp, fingerName, hand.handedness);
-                        if (accelerationData !== null) {
-                            features.push({
-                                name: `${fingerName}_base_acceleration`,
-                                type: 'number',
-                                value: accelerationData,
-                                parents: this.name,
-                                display: 'Graph',
-                                minMax: [-10, 10], // Accélération normalisée
-                                timestamp: frame.timestamp,
-                                hand: hand.handedness,
-                                finger: fingerName as Finger
-                            });
-                        }
-                    }
+                    // Calcul vitesse angulaire
+                    const angularVelocity = this.calculateAngularVelocity(angle, frame.timestamp, fingerName, hand.handedness);
+
+                    // min and max à 20 pour la vitesse angulaire (ajustable)
+                    const maxVel = fingerName === 'thumb' ? 10 : 20;
+                    const minVel = -maxVel;
+
+                    const maxAng = fingerName === 'thumb' ? 1.5 : 0.1;
+                    const minAng = fingerName === 'thumb' ? -0.4 : -2;
+
+                    // Ajout de la feature valeur angulaire (angle en rad)
+                    features.push({
+                        name: `${fingerName}_angular_value`,
+                        type: 'number',
+                        value: angle,
+                        parents: this.name,
+                        display: 'Graph',
+                        minMax: [maxAng, minAng],
+                        timestamp: frame.timestamp,
+                        hand: hand.handedness,
+                        finger: fingerName as Finger
+                    });
+
+                    // Ajout de la feature vitesse angulaire (en rad/s)
+                    features.push({
+                        name: `${fingerName}_angular_velocity`,
+                        type: 'number',
+                        value: angularVelocity,
+                        parents: this.name,
+                        display: 'Graph',
+                        minMax: [minVel, maxVel],
+                        timestamp: frame.timestamp,
+                        hand: hand.handedness,
+                        finger: fingerName as Finger
+                    });
                 }
             }
         }
-
         return features;
     }
 
-    private calculateRelativePosition(tip: HandLandmarks, base: HandLandmarks): { x: number; y: number; z: number } {
-        return {
-            x: tip.x - base.x,
-            y: tip.y - base.y,
-            z: tip.z - base.z
-        };
+
+    // Calcule l'angle entre deux vecteurs 2D (en radians, entre -PI et PI)
+    private calculateAngle2D(
+        v1: { x: number; y: number },
+        v2: { x: number; y: number }
+    ): number {
+        const dot = v1.x * v2.x + v1.y * v2.y;
+        const det = v1.x * v2.y - v1.y * v2.x;
+        return Math.atan2(det, dot);
     }
 
-    private calculateVelocity(
-        position: { x: number; y: number; z: number },
+
+    // Calcule la vitesse angulaire (rad/s)
+    private calculateAngularVelocity(
+        angle: number,
         timestamp: number,
-        fingerName: Finger,
+        fingerName: string,
         hand: HandSide
-    ): FingerVelocityData | null {
+    ): number {
         const key = `${fingerName}_${hand}`;
-        const previousData = this.previousData.get(key);
-
-        if (!previousData) {
-            // Première frame, pas de vitesse calculable
-            const newData: FingerVelocityData = {
-                position,
-                velocity: { x: 0, y: 0, z: 0 },
-                speed: 0,
-                timestamp
-            };
-            this.previousData.set(key, newData);
-            return newData;
+        const prev = this.previousAngle.get(key);
+        let velocity = 0;
+        if (prev) {
+            const deltaTime = (timestamp - prev.timestamp) / 1000;
+            if (deltaTime > 0) {
+                // Gestion du passage -PI/PI
+                let deltaAngle = angle - prev.angle;
+                if (deltaAngle > Math.PI) deltaAngle -= 2 * Math.PI;
+                if (deltaAngle < -Math.PI) deltaAngle += 2 * Math.PI;
+                velocity = deltaAngle / deltaTime;
+            }
         }
-
-        // Calculer le delta de temps en secondes
-        const deltaTime = (timestamp - previousData.timestamp) / 1000;
-
-        if (deltaTime <= 0) {
-            return null; // Éviter division par zéro
-        }
-
-        // Calculer la vitesse
-        const velocity = {
-            x: (position.x - previousData.position.x) / deltaTime,
-            y: (position.y - previousData.position.y) / deltaTime,
-            z: (position.z - previousData.position.z) / deltaTime
-        };
-
-        // Calculer la vitesse scalaire (magnitude)
-        const speed = Math.sqrt(velocity.x ** 2 + velocity.y ** 2 + velocity.z ** 2);
-
-        const newData: FingerVelocityData = {
-            position,
-            velocity,
-            speed,
-            timestamp
-        };
-
-        this.previousData.set(key, newData);
-        return newData;
+        this.previousAngle.set(key, { angle, timestamp });
+        return velocity;
     }
 
-    private calculateAcceleration(
-        currentSpeed: number,
+
+    // Calcule l'accélération angulaire (rad/s²)
+    private calculateAngularAcceleration(
+        currentVelocity: number,
         timestamp: number,
-        fingerName: Finger,
+        fingerName: string,
         hand: HandSide
     ): number | null {
         const key = `${fingerName}_${hand}`;
-        const previousVel = this.previousVelocity.get(key);
-
-        if (!previousVel) {
-            // Première mesure de vitesse, pas d'accélération calculable
-            this.previousVelocity.set(key, {
-                velocity: currentSpeed,
+        const prev = this.previousAngularVelocity.get(key);
+        if (!prev) {
+            this.previousAngularVelocity.set(key, {
+                velocity: currentVelocity,
                 acceleration: 0,
                 timestamp
             });
             return 0;
         }
-
-        // Calculer le delta de temps en secondes
-        const deltaTime = (timestamp - previousVel.timestamp) / 1000;
-
-        if (deltaTime <= 0) {
-            return null; // Éviter division par zéro
-        }
-
-        // Calculer l'accélération
-        const acceleration = (currentSpeed - previousVel.velocity) / deltaTime;
-
-        // Mettre à jour l'historique
-        this.previousVelocity.set(key, {
-            velocity: currentSpeed,
+        const deltaTime = (timestamp - prev.timestamp) / 1000;
+        if (deltaTime <= 0) return null;
+        const acceleration = (currentVelocity - prev.velocity) / deltaTime;
+        this.previousAngularVelocity.set(key, {
+            velocity: currentVelocity,
             acceleration,
             timestamp
         });
-
         return acceleration;
     }
 
     // Méthode pour réinitialiser l'historique si nécessaire
     clearHistory(): void {
-        this.previousData.clear();
-        this.previousVelocity.clear();
+        this.previousAngle.clear();
+        this.previousAngularVelocity.clear();
     }
 }

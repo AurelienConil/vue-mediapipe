@@ -1,11 +1,22 @@
 <template>
   <div class="feature-chart">
     <canvas ref="canvasRef" :width="width" :height="height"></canvas>
+    <span>
+      {{ formattedValue }} :: {{ props.feature.minMax[0] }} -
+      {{ props.feature.minMax[1] }}
+    </span>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, nextTick, onBeforeUnmount } from "vue";
+import {
+  ref,
+  onMounted,
+  watch,
+  nextTick,
+  onBeforeUnmount,
+  computed,
+} from "vue";
 import {
   Chart,
   CategoryScale,
@@ -15,7 +26,7 @@ import {
   LineController,
   Filler,
   Legend,
-  Tooltip
+  Tooltip,
 } from "chart.js";
 import type { ChartConfiguration, ChartData } from "chart.js";
 import type { Feature } from "../mediapipe/types";
@@ -80,6 +91,22 @@ function getFeatureColor(feature: Feature): string {
 
   return colors[feature.parents as keyof typeof colors] || colors.default;
 }
+
+//computed function that format properly a number to 3 decimal places and fixe position with adding zéro and space.
+// The goal is to have always the xxx.xxx format à the same position
+const formattedValue = computed(() => {
+  if (typeof props.feature.value !== "number") return "N/A";
+  const value = props.feature.value;
+  const absValue = Math.abs(value);
+  // Always pad integer part to 3 digits, sign is always in first position
+  const [intPart, decPart] = absValue.toFixed(3).split(".");
+  // If negative, sign is '-', else space
+  const sign = value < 0 ? "-" : "+";
+  // Always 3 digits for int part
+  const paddedInt = intPart.padStart(3, "0");
+  // Compose and pad to 8 chars (sign + 3 int + dot + 3 decimals)
+  return `${sign}${paddedInt}.${decPart}`;
+});
 
 function updateHistory() {
   if (typeof props.feature.value !== "number") return;
@@ -151,7 +178,8 @@ function initChart() {
           displayColors: false,
           callbacks: {
             title: () => props.feature.name,
-            label: (context) => context.parsed.y != null ? `${context.parsed.y.toFixed(3)}` : '',
+            label: (context) =>
+              context.parsed.y != null ? `${context.parsed.y.toFixed(3)}` : "",
           },
         },
       },

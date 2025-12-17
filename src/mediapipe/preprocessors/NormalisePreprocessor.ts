@@ -33,7 +33,7 @@ export class NormalisePreprocessor extends BasePreprocessor {
             const dx = p17.x - p5.x;
             const dy = p17.y - p5.y;
             const dz = p17.z - p5.z;
-            const norm = (Math.sqrt(dx * dx + dy * dy + dz * dz)) * 4.0;
+            const norm = (Math.sqrt(dx * dx + dy * dy + dz * dz)) * 8.0;
             if (norm === 0) {
                 processedHands.push(hand);
                 continue;

@@ -1,5 +1,5 @@
 // Core classes
-export { FeatureStore } from '../stores/FeatureStore';
+export { useFeatureStore } from '../stores/FeatureStore';
 export { useCoreStore } from '../stores/CoreStore';
 export { EventBus } from './core/EventBus';
 export { EventHistory } from './core/EventHistory';
@@ -23,3 +23,4 @@ export type {
 export * from './preprocessors';
 export * from './extractors';
 export * from './analyzers';
+

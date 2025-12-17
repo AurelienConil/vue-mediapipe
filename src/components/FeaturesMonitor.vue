@@ -26,6 +26,11 @@
         hide-details
         class="mb-2"
         label="Filtrer par catégorie"
+        @update:menu="
+          (open) => {
+            if (open) refreshCategories();
+          }
+        "
       >
         <template v-slot:selection="{ item }">
           <v-icon size="x-small" class="mr-1">{{ item.raw.icon }}</v-icon>
@@ -75,10 +80,15 @@
           <v-icon :color="getFeatureColor(feature)" size="x-small" class="mr-1">
             {{ getFeatureIcon(feature) }}
           </v-icon>
-          <span class="feature-name text-caption">{{
-            formatFeatureName(feature.name)
-          }}</span>
+          <Tooltip
+            :content="feature.name"
+            :delay="500"
+             placement="top-start">
+            <span class="feature-name text-caption">{{
+              formatFeatureName(feature.name)
+            }}</span>
           <v-spacer />
+         </Tooltip>
           <v-btn
             :icon="favorites.has(key) ? 'mdi-star' : 'mdi-star-outline'"
             :color="favorites.has(key) ? 'yellow-darken-3' : 'grey'"
@@ -123,42 +133,39 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from "vue";
 import type { Feature, Finger } from "../mediapipe/types";
-import { FeatureStore } from "../stores/FeatureStore";
+import { useFeatureStore } from "../stores/FeatureStore";
 import FeatureChart from "./FeatureChart.vue";
 import FeatureNumberDisplay from "./FeatureNumberDisplay.vue";
+import type { Tooltip } from "chart.js";
 
 // Props
-interface Props {
-  featureStore: FeatureStore;
-  processorVersion?: number;
-}
-const props = defineProps<Props>();
+// On n'utilise plus de prop featureStore, on accède directement au store Pinia
+const featureStore = useFeatureStore();
+const props = defineProps<{ processorVersion?: number }>();
 
-// Reactive data
-const features = ref<Map<string, Feature>>(new Map());
-const totalFeatures = ref(0);
+// Utilisation directe du store Pinia (FeatureStore)
+// On utilise un computed pour accéder aux features du store dynamiquement
+const storeFeatures = computed(() => featureStore.getAllFeatures());
+const totalFeatures = computed(() => storeFeatures.value?.size || 0);
 
 // Système de filtrage
 type CategoryFilter = "all" | "favorites" | string; // string pour les catégories spécifiques
 const selectedCategory = ref<CategoryFilter>("all");
 
-// Options de filtrage par catégories
+// Catégories dynamiques, toujours à jour grâce à la réactivité
 const categoryOptions = computed(() => {
   const options = [
     { label: "Aucun filtre", value: "all", icon: "mdi-view-list" },
     { label: "Favoris", value: "favorites", icon: "mdi-star" },
   ];
-
-  // Ajouter les catégories disponibles
   const categories = new Set<string>();
-  if (features.value) {
-    for (const [, feature] of features.value) {
+  if (storeFeatures.value) {
+    for (const [, feature] of storeFeatures.value) {
       if (feature.parents) {
         categories.add(feature.parents);
       }
     }
   }
-
   for (const category of Array.from(categories).sort()) {
     options.push({
       label: formatCategoryName(category),
@@ -166,8 +173,15 @@ const categoryOptions = computed(() => {
       icon: getCategoryIcon(category),
     });
   }
-
   return options;
+});
+
+// Rafraîchir au montage
+onMounted(() => {
+  loadFavorites();
+  console.log("🚀 FeaturesMonitor mounted");
+  console.log("📊 Initial features count:", totalFeatures.value);
+  console.log("🔍 Initial filtered features:", filteredFeatures.value.size);
 });
 
 // Filtrage par doigts
@@ -196,97 +210,31 @@ const favorites = ref<Set<string>>(new Set());
 
 // Removed canvas management - now handled by dedicated components
 
-// Computed pour les features filtrées
+// Computed pour les features filtrées (directement depuis le store)
 const filteredFeatures = computed(() => {
   const filtered = new Map<string, Feature>();
-  let totalProcessed = 0;
-  let fingersFiltered = 0;
-  let categoryFiltered = 0;
-
-  if (!features.value) {
-    return filtered;
-  }
-
-  for (const [key, feature] of features.value) {
-    totalProcessed++;
+  const allFeatures = storeFeatures.value;
+  if (!allFeatures) return filtered;
+  for (const [key, feature] of allFeatures) {
     let shouldInclude = true;
-
-    // Filtre par doigts (toujours appliqué)
     if (feature.finger && !selectedFingers.value.has(feature.finger)) {
       shouldInclude = false;
-
-      fingersFiltered++;
     }
-
-    // Filtre par catégorie (si sélectionné)
     if (shouldInclude && selectedCategory.value !== "all") {
       if (selectedCategory.value === "favorites") {
         if (!favorites.value.has(key)) {
           shouldInclude = false;
-
-          categoryFiltered++;
         }
       } else {
-        // Catégorie spécifique
         if (feature.parents !== selectedCategory.value) {
           shouldInclude = false;
-
-          categoryFiltered++;
         }
       }
     }
-
     if (shouldInclude) {
       filtered.set(key, feature);
     }
   }
-
-  // Debug logging (throttled)
-  if (totalProcessed > 0 && Math.random() < 0.1) {
-    // Log ~10% of the time for better debugging
-    console.log(
-      `🔍 Filtering summary: ${filtered.size}/${totalProcessed} features shown`
-    );
-    console.log(`   - ${fingersFiltered} filtered by fingers`);
-    console.log(`   - ${categoryFiltered} filtered by category`);
-    console.log(`   - Selected fingers:`, Array.from(selectedFingers.value));
-    console.log(`   - Selected category:`, selectedCategory.value);
-
-    if (filtered.size > 0) {
-      console.log(
-        `   - First few filtered features:`,
-        Array.from(filtered.keys()).slice(0, 3)
-      );
-      // Show sample feature structure
-      const firstEntry = Array.from(filtered.entries())[0];
-      if (firstEntry) {
-        const [firstKey, firstFeature] = firstEntry;
-        console.log(`   - Sample feature structure:`, {
-          key: firstKey,
-          name: firstFeature.name,
-          display: firstFeature.display,
-          value: firstFeature.value,
-          type: firstFeature.type,
-        });
-      }
-    } else {
-      console.log(`   - No features passed filters!`);
-      if (totalProcessed > 0) {
-        console.log(
-          `   - All features summary:`,
-          Array.from(features.value.entries())
-            .slice(0, 3)
-            .map(([key, f]) => ({
-              key,
-              name: f.name,
-              finger: f.finger,
-              display: f.display,
-            }))
-        );
-      }
-    }
-  }
-
   return filtered;
 });
 
@@ -390,31 +338,7 @@ const formatCategoryName = (category: string): string => {
     .replace(/^./, (str) => str.toUpperCase());
 };
 
-// Update features from store
-const updateFeatures = () => {
-  console.log("🔄 About to get features from store...");
-  console.log("🏪 FeatureStore:", props.featureStore);
-  console.log(
-    "🏪 FeatureStore methods:",
-    Object.getOwnPropertyNames(Object.getPrototypeOf(props.featureStore))
-  );
-
-  const newFeatures = props.featureStore.getAllFeatures();
-  console.log("🔄 Features retrieved from store:", newFeatures.size);
-
-  if (newFeatures.size > 0) {
-    console.log(
-      "📋 First few features:",
-      Array.from(newFeatures.entries()).slice(0, 3)
-    );
-  } else {
-    console.log("⚠️ No features found in store");
-    console.log("🔍 Checking if processor has processed any data...");
-  }
-
-  features.value = newFeatures;
-  totalFeatures.value = newFeatures.size;
-};
+// Suppression de updateFeatures : la réactivité du store Pinia suffit
 
 // Subscribe to all feature changes
 const subscriptions = new Map<string, () => void>();
@@ -469,162 +393,27 @@ const getFeatureIcon = (feature: Feature): string => {
 
 // Graph rendering is now handled by FeatureGraphDisplay component
 
-// Polling interval
-let pollInterval: number | null = null;
-let isMounted = false;
+// Suppression du polling interval et de isMounted
 
-// Watcher pour réinitialiser lorsque le processor change
+// Watcher pour recharger les favoris si le processor change
 watch(
   () => props.processorVersion,
   () => {
-    console.log("Processor changé, réinitialisation du FeaturesMonitor");
-    // Forcer la mise à jour des features
-    updateFeatures();
-
-    // Recharger les favoris depuis localStorage
+    console.log("Processor changé, rechargement des favoris");
     loadFavorites();
   }
 );
 
-// Graph rendering is now handled by individual FeatureGraphDisplay components
-
 onMounted(() => {
-  isMounted = true;
-  updateFeatures();
   loadFavorites();
-
   console.log("🚀 FeaturesMonitor mounted");
-  console.log("📊 Initial features count:", features.value.size);
+  console.log("📊 Initial features count:", totalFeatures.value);
   console.log("🔍 Initial filtered features:", filteredFeatures.value.size);
-
-  // Polling optimisé - ne met à jour que les features visibles
-  let lastVisibleFeatureKeys = new Set<string>();
-
-  pollInterval = window.setInterval(() => {
-    try {
-      // Vérifier que le composant existe encore et que le store est disponible
-      if (!isMounted || !props.featureStore || !features.value) {
-        if (!isMounted) {
-          console.warn("Composant démonté, arrêt du polling");
-        } else {
-          console.warn(
-            "FeatureStore ou features non disponible, arrêt du polling"
-          );
-        }
-        if (pollInterval) {
-          clearInterval(pollInterval);
-          pollInterval = null;
-        }
-        return;
-      }
-
-      // 1. Récupérer toutes les features du store (calculs toujours actifs)
-      const allFeatures = props.featureStore.getAllFeatures();
-
-      // 2. Déterminer quelles features sont actuellement visibles
-      const currentVisibleKeys = new Set<string>();
-
-      for (const [key, feature] of allFeatures) {
-        let shouldInclude = true;
-
-        // Appliquer les mêmes filtres que filteredFeatures
-        if (feature.finger && !selectedFingers.value.has(feature.finger)) {
-          shouldInclude = false;
-        }
-
-        if (shouldInclude && selectedCategory.value !== "all") {
-          if (selectedCategory.value === "favorites") {
-            if (!favorites.value.has(key)) {
-              shouldInclude = false;
-            }
-          } else {
-            if (feature.parents !== selectedCategory.value) {
-              shouldInclude = false;
-            }
-          }
-        }
-
-        if (shouldInclude) {
-          currentVisibleKeys.add(key);
-        }
-      }
-
-      // 3. Mise à jour optimisée - seulement si nécessaire
-      const visibleKeysChanged =
-        currentVisibleKeys.size !== lastVisibleFeatureKeys.size ||
-        ![...currentVisibleKeys].every((key) =>
-          lastVisibleFeatureKeys.has(key)
-        );
-
-      if (visibleKeysChanged || features.value.size !== allFeatures.size) {
-        // Créer une Map avec seulement les features visibles pour optimiser le rendu Vue
-        const optimizedFeatures = new Map<string, Feature>();
-
-        for (const key of currentVisibleKeys) {
-          const feature = allFeatures.get(key);
-          if (feature) {
-            optimizedFeatures.set(key, feature);
-          }
-        }
-
-        if (isMounted) {
-          features.value = optimizedFeatures; // Seulement les features visibles
-          totalFeatures.value = allFeatures.size; // Garder le total complet pour stats
-        }
-
-        lastVisibleFeatureKeys = currentVisibleKeys;
-
-        // Debug périodique
-        if (Math.random() < 0.02) {
-          // 2% du temps
-          console.log(
-            `🚀 Optimized update: ${optimizedFeatures.size} visible / ${allFeatures.size} total features`
-          );
-        }
-      }
-
-      // Log filtered features every few seconds
-      if (Date.now() % 3000 < 100) {
-        // Roughly every 3 seconds
-        console.log(
-          "🔍 Current filtered features:",
-          filteredFeatures.value.size,
-          "out of",
-          totalFeatures.value
-        );
-        console.log("🎯 Selected fingers:", Array.from(selectedFingers.value));
-        console.log("📋 Selected category:", selectedCategory.value);
-      }
-    } catch (error) {
-      console.warn("Erreur dans le polling des features:", error);
-      if (pollInterval) {
-        clearInterval(pollInterval);
-        pollInterval = null;
-      }
-    }
-  }, 100); // Reduced frequency since individual components handle their own rendering
 });
 
 onUnmounted(() => {
-  isMounted = false;
-  try {
-    if (pollInterval) {
-      clearInterval(pollInterval);
-      pollInterval = null;
-    }
-
-    // Cleanup subscriptions
-    for (const unsubscribe of subscriptions.values()) {
-      try {
-        unsubscribe();
-      } catch (error) {
-        console.warn("Erreur lors du nettoyage d'une souscription:", error);
-      }
-    }
-    subscriptions.clear();
-  } catch (error) {
-    console.warn("Erreur lors du démontage de FeaturesMonitor:", error);
-  }
+  // Cleanup subscriptions si besoin (placeholder)
+  subscriptions.clear();
 });
 </script>
 

@@ -1,52 +1,49 @@
+import { defineStore } from 'pinia';
+import { reactive } from 'vue';
 import type { Feature } from '../mediapipe/types';
 
-export class FeatureStore {
-    private features = new Map<string, Feature>();
-    private history = new Map<string, Feature[]>();
-    private maxHistorySize = 100;
-    private subscribers = new Map<string, ((feature: Feature) => void)[]>();
+export const useFeatureStore = defineStore('feature', () => {
+    // State
+    const features = reactive(new Map<string, Feature>());
+    const history = reactive(new Map<string, Feature[]>());
+    const maxHistorySize = 100;
+    const subscribers = reactive(new Map<string, ((feature: Feature) => void)[]>());
 
-    setFeature(feature: Feature): void {
-        const key = this.getFeatureKey(feature);
-
-        // Store current value
-        this.features.set(key, feature);
+    // Actions
+    function setFeature(feature: Feature): void {
+        const key = feature.name;
+        features.set(key, feature);
 
         // Store in history
-        if (!this.history.has(key)) {
-            this.history.set(key, []);
+        if (!history.has(key)) {
+            history.set(key, []);
         }
-
-        const featureHistory = this.history.get(key)!;
-        featureHistory.push({ ...feature }); // Clone pour éviter les mutations
-
-        // Limit history size
-        if (featureHistory.length > this.maxHistorySize) {
+        const featureHistory = history.get(key)!;
+        featureHistory.push({ ...feature });
+        if (featureHistory.length > maxHistorySize) {
             featureHistory.shift();
         }
 
         // Notify subscribers
-        this.notifySubscribers(key, feature);
+        notifySubscribers(key, feature);
     }
 
-    getFeature(name: string, hand?: 'Left' | 'Right'): Feature | null {
-        const key = hand ? `${name}_${hand}` : name;
-        return this.features.get(key) || null;
+    function getFeature(name: string): Feature | null {
+        return features.get(name) || null;
     }
 
-    getFeatureHistory(name: string, hand?: 'Left' | 'Right', count?: number): Feature[] {
-        const key = hand ? `${name}_${hand}` : name;
-        const history = this.history.get(key) || [];
-        return count ? history.slice(-count) : [...history]; // Clone pour éviter les mutations
+    function getFeatureHistory(name: string, count?: number): Feature[] {
+        const h = history.get(name) || [];
+        return count ? h.slice(-count) : [...h];
     }
 
-    getAllFeatures(): Map<string, Feature> {
-        return new Map(this.features); // Clone pour éviter les mutations
+    function getAllFeatures(): Map<string, Feature> {
+        return new Map(features);
     }
 
-    getFeaturesByType(type: 'string' | 'bool' | 'number'): Map<string, Feature> {
+    function getFeaturesByType(type: 'string' | 'bool' | 'number'): Map<string, Feature> {
         const result = new Map<string, Feature>();
-        for (const [key, feature] of this.features) {
+        for (const [key, feature] of features) {
             if (feature.type === type) {
                 result.set(key, feature);
             }
@@ -54,9 +51,9 @@ export class FeatureStore {
         return result;
     }
 
-    getFeaturesByParent(parent: string): Map<string, Feature> {
+    function getFeaturesByParent(parent: string): Map<string, Feature> {
         const result = new Map<string, Feature>();
-        for (const [key, feature] of this.features) {
+        for (const [key, feature] of features) {
             if (feature.parents === parent) {
                 result.set(key, feature);
             }
@@ -64,9 +61,9 @@ export class FeatureStore {
         return result;
     }
 
-    getFeaturesByHand(hand: 'Left' | 'Right'): Map<string, Feature> {
+    function getFeaturesByHand(hand: 'Left' | 'Right'): Map<string, Feature> {
         const result = new Map<string, Feature>();
-        for (const [key, feature] of this.features) {
+        for (const [key, feature] of features) {
             if (feature.hand === hand) {
                 result.set(key, feature);
             }
@@ -74,9 +71,9 @@ export class FeatureStore {
         return result;
     }
 
-    getGraphableFeatures(): Map<string, Feature> {
+    function getGraphableFeatures(): Map<string, Feature> {
         const result = new Map<string, Feature>();
-        for (const [key, feature] of this.features) {
+        for (const [key, feature] of features) {
             if (feature.display === 'Graph') {
                 result.set(key, feature);
             }
@@ -84,45 +81,40 @@ export class FeatureStore {
         return result;
     }
 
-    subscribe(featureName: string, callback: (feature: Feature) => void, hand?: 'Left' | 'Right'): void {
-        const key = hand ? `${featureName}_${hand}` : featureName;
-        if (!this.subscribers.has(key)) {
-            this.subscribers.set(key, []);
+    function subscribe(featureName: string, callback: (feature: Feature) => void): void {
+        if (!subscribers.has(featureName)) {
+            console.log('Creating new subscriber list for feature:', featureName);
+            subscribers.set(featureName, []);
         }
-        this.subscribers.get(key)!.push(callback);
+        subscribers.get(featureName)!.push(callback);
     }
 
-    unsubscribe(featureName: string, callback: (feature: Feature) => void, hand?: 'Left' | 'Right'): void {
-        const key = hand ? `${featureName}_${hand}` : featureName;
-        const callbacks = this.subscribers.get(key) || [];
+    function unsubscribe(featureName: string, callback: (feature: Feature) => void): void {
+        const callbacks = subscribers.get(featureName) || [];
         const index = callbacks.indexOf(callback);
         if (index > -1) {
             callbacks.splice(index, 1);
         }
     }
 
-    clear(): void {
-        this.features.clear();
-        this.history.clear();
+    function clear(): void {
+        features.clear();
+        history.clear();
     }
 
-    getStats(): { totalFeatures: number; totalHistoryEntries: number } {
+    function getStats(): { totalFeatures: number; totalHistoryEntries: number } {
         let totalHistoryEntries = 0;
-        for (const history of this.history.values()) {
-            totalHistoryEntries += history.length;
+        for (const h of history.values()) {
+            totalHistoryEntries += h.length;
         }
         return {
-            totalFeatures: this.features.size,
+            totalFeatures: features.size,
             totalHistoryEntries
         };
     }
 
-    private getFeatureKey(feature: Feature): string {
-        return feature.hand ? `${feature.name}_${feature.hand}` : feature.name;
-    }
-
-    private notifySubscribers(key: string, feature: Feature): void {
-        const callbacks = this.subscribers.get(key) || [];
+    function notifySubscribers(key: string, feature: Feature): void {
+        const callbacks = subscribers.get(key) || [];
         callbacks.forEach(callback => {
             try {
                 callback(feature);
@@ -131,4 +123,20 @@ export class FeatureStore {
             }
         });
     }
-}
+
+    return {
+        features,
+        setFeature,
+        getFeature,
+        getFeatureHistory,
+        getAllFeatures,
+        getFeaturesByType,
+        getFeaturesByParent,
+        getFeaturesByHand,
+        getGraphableFeatures,
+        subscribe,
+        unsubscribe,
+        clear,
+        getStats
+    };
+});

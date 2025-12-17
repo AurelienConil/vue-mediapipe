@@ -1,20 +1,23 @@
 import type { MediaPipeFrame, HandData } from '../types';
-import { FeatureStore } from '../../stores/FeatureStore';
+import { useFeatureStore } from '../../stores/FeatureStore';
 import { useCoreStore } from '../../stores/CoreStore';
 import { EventBus } from './EventBus';
 import { EventHistory } from './EventHistory';
 import type { BaseFeatureExtractor } from '../extractors/BaseFeatureExtractor';
 import type { BaseAnalyzer } from '../analyzers/BaseAnalyzer';
 import { BasePreprocessor } from '../preprocessors/BasePreprocessor';
+import { Analyzers } from '../analyzers/Analyzers';
 
 export class MediaPipeProcessor {
-    private featureStore = new FeatureStore();
+    private featureStore = useFeatureStore();
     private eventHistory = new EventHistory();
     private eventBus = new EventBus(this.eventHistory);
     private coreStore = useCoreStore();
     private preprocessors: BasePreprocessor[] = [];
     private extractors: BaseFeatureExtractor[] = [];
     private analyzers: BaseAnalyzer[] = [];
+    private analyzersManager = new Analyzers();
+    private analyzersInitialized = false;
     private currentFrame: MediaPipeFrame | null = null;
 
     addPreprocessor(preprocessor: BasePreprocessor): void {
@@ -46,12 +49,12 @@ export class MediaPipeProcessor {
         return this.featureStore;
     }
 
-    getEventBus(): EventBus {
-        return this.eventBus;
+    getEventBus() {
+        return this.analyzersManager.getEventBus();
     }
 
-    getEventHistory(): EventHistory {
-        return this.eventHistory;
+    getEventHistory() {
+        return this.analyzersManager.getEventHistory();
     }
 
     getCoreStore() {
@@ -63,6 +66,12 @@ export class MediaPipeProcessor {
     }
 
     processFrame(results: any): void {
+        // Initialisation des analyzers si ce n'est pas déjà fait
+        if (!this.analyzersInitialized) {
+            this.analyzersManager.init(this.featureStore);
+            this.analyzersInitialized = true;
+        }
+
         // 1. Convert MediaPipe results to MediaPipeFrame
         let frame: MediaPipeFrame = this.convertToMediaPipeFrame(results);
         //console.log('📊 Frame converti:', frame);

@@ -23,70 +23,59 @@ export class DistanceFinger extends BaseFeatureExtractor {
             }
 
             const thumbTip = hand.landmarks[this.fingerTips.thumb];
-            
-            // Vérifier que le bout du pouce est valide
             if (!this.isValidPoint(thumbTip)) {
                 continue;
             }
 
-            // Calculer la distance entre le pouce et chaque autre doigt
+            // Calculer la distance 3D entre le pouce et chaque autre doigt
             for (const [fingerName, tipIndex] of Object.entries(this.fingerTips)) {
-                if (fingerName === 'thumb') continue; // Skip le pouce lui-même
-                
+                if (fingerName === 'thumb') continue;
                 const fingerTip = hand.landmarks[tipIndex];
-                
                 if (!this.isValidPoint(fingerTip)) {
-                    continue; // Skip si le bout du doigt n'est pas valide
+                    continue;
                 }
-
-                // Calculer la distance 3D entre les deux points
                 const distance = this.calculateDistance3D(thumbTip, fingerTip);
-                
-                // Normaliser la distance par rapport à la taille de la main
-                const handSize = this.estimateHandSize(hand);
-                const normalizedDistance = handSize > 0 ? distance / handSize : 0;
 
-                // Feature: Distance brute entre pouce et doigt
+                // --- Ajout de la vitesse de la distance ---
+                // On récupère la dernière feature de distance pour ce doigt et cette main AVANT d'ajouter la nouvelle
+                const prevFeature = featureStore.getFeature(
+                    `thumb_to_${fingerName}_distance`,
+                    hand.handedness,
+                    fingerName as Finger
+                );
+                if (prevFeature && typeof prevFeature.value === 'number' && prevFeature.timestamp !== undefined) {
+                    const dt = (frame.timestamp - prevFeature.timestamp) / 1000; // en secondes
+                    if (dt > 0) {
+                        const speed = Math.abs(distance - prevFeature.value) / dt;
+                        features.push({
+                            name: `thumb_to_${fingerName}_distance_speed`,
+                            type: 'number',
+                            value: speed,
+                            parents: this.name,
+                            display: 'Graph',
+                            minMax: [0, 2],
+                            timestamp: frame.timestamp,
+                            hand: hand.handedness,
+                            finger: fingerName as Finger
+                        });
+                    }
+                }
+                // --- Fin ajout vitesse ---
+
                 features.push({
                     name: `thumb_to_${fingerName}_distance`,
                     type: 'number',
                     value: distance,
                     parents: this.name,
                     display: 'Graph',
-                    minMax: [0, 0.3], // Distance maximale raisonnable en unités MediaPipe
-                    timestamp: frame.timestamp,
-                    hand: hand.handedness,
-                    finger: fingerName as Finger
-                });
-
-                // Feature: Distance normalisée (pour comparaison entre mains de différentes tailles)
-                features.push({
-                    name: `thumb_to_${fingerName}_normalized`,
-                    type: 'number',
-                    value: normalizedDistance,
-                    parents: this.name,
-                    display: 'Graph',
-                    minMax: [0, 1.5], // Ratio maximal raisonnable
+                    minMax: [0, 0.3],
                     timestamp: frame.timestamp,
                     hand: hand.handedness,
                     finger: fingerName as Finger
                 });
             }
 
-            // Feature: Distance moyenne entre pouce et tous les doigts
-            const averageDistance = this.calculateAverageThumbDistance(hand);
-            if (averageDistance !== null) {
-                features.push({
-                    name: 'thumb_to_fingers_avg_distance',
-                    type: 'number',
-                    value: averageDistance,
-                    parents: this.name,
-                    display: 'Graph',
-                    minMax: [0, 0.25],
-                    timestamp: frame.timestamp,
-                    hand: hand.handedness
-                });
-            }
+            // ... pas de moyenne, uniquement distances réelles ...
         }
 
         return features;
@@ -96,41 +85,14 @@ export class DistanceFinger extends BaseFeatureExtractor {
         const dx = point1.x - point2.x;
         const dy = point1.y - point2.y;
         const dz = point1.z - point2.z;
-        
+
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
-    private estimateHandSize(hand: HandData): number {
-        // Estimer la taille de la main comme la distance entre le poignet et le bout du majeur
-        if (hand.landmarks.length < 13) return 0;
-        
-        const wrist = hand.landmarks[0];
-        const middleTip = hand.landmarks[12];
-        
-        if (!this.isValidPoint(wrist) || !this.isValidPoint(middleTip)) return 0;
-        
-        return this.calculateDistance3D(wrist, middleTip);
-    }
 
-    private calculateAverageThumbDistance(hand: HandData): number | null {
-        const thumbTip = hand.landmarks[this.fingerTips.thumb];
-        if (!this.isValidPoint(thumbTip)) return null;
+    // estimateHandSize supprimé car plus nécessaire (landmarks déjà normalisés)
 
-        let totalDistance = 0;
-        let validFingers = 0;
-
-        for (const [fingerName, tipIndex] of Object.entries(this.fingerTips)) {
-            if (fingerName === 'thumb') continue;
-            
-            const fingerTip = hand.landmarks[tipIndex];
-            if (this.isValidPoint(fingerTip)) {
-                totalDistance += this.calculateDistance3D(thumbTip, fingerTip);
-                validFingers++;
-            }
-        }
-
-        return validFingers > 0 ? totalDistance / validFingers : null;
-    }
+    // calculateAverageThumbDistance supprimé : plus de moyenne, uniquement distances réelles
 
     private isValidPoint(point: HandLandmarks | undefined): boolean {
         if (!point) return false;

@@ -6,6 +6,7 @@ import CoreStatusMonitor from "./components/CoreStatusMonitor.vue";
 import PreprocessorControl from "./components/PreprocessorControl.vue";
 import Preprocessor from "./components/Preprocessor.vue";
 import { useMediaPipeStore } from "@/stores/mediapipe";
+import EventDisplay from "./components/EventDisplay.vue";
 
 const mediaPipeStore = useMediaPipeStore();
 
@@ -54,6 +55,9 @@ const showFeaturesMonitor = computed(
   () => currentView.value === "default" || currentView.value === "3d"
 );
 
+const showEventDisplay = computed(
+  () => currentView.value === "default"
+);
 const showPreprocessor = computed(
   () => currentView.value === "3d" || currentView.value === "camera"
 );
@@ -114,7 +118,7 @@ const showPreprocessorControl = computed(
 
           <!-- Colonne 2 : FeaturesMonitor -->
           <v-col
-            cols="6"
+            cols="3"
             class="pl-2"
             :style="{ display: showFeaturesMonitor ? 'block' : 'none' }"
           >
@@ -122,6 +126,15 @@ const showPreprocessorControl = computed(
               :feature-store="mediaPipeStore.getFeatureStore()"
               :processor-version="mediaPipeStore.processorVersion"
             />
+          </v-col>
+
+          <!-- Colonne 2 : FeaturesMonitor -->
+          <v-col
+            cols="3"
+            class="pl-2"
+            :style="{ display: showEventDisplay ? 'block' : 'none' }"
+          >
+           <EventDisplay />
           </v-col>
 
           <!-- Colonne 3 : Preprocessor -->

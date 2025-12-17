@@ -1,0 +1,28 @@
+import { defineStore } from 'pinia';
+import { ref } from 'vue';
+import { EventBus } from '../mediapipe/core/EventBus';
+import { EventHistory } from '../mediapipe/core/EventHistory';
+import type { Event } from '../mediapipe/types';
+
+// Singleton EventBus instance
+const eventHistory = new EventHistory();
+const eventBus = new EventBus(eventHistory);
+
+export const useEventBusStore = defineStore('eventBus', () => {
+    const lastEvent = ref<Event | null>(null);
+
+    // Listen to all events and update lastEvent
+    eventBus.on('*', (event: Event) => {
+        lastEvent.value = event;
+    });
+
+    function clearEvent() {
+        lastEvent.value = null;
+    }
+
+    return {
+        eventBus,
+        lastEvent,
+        clearEvent
+    };
+});

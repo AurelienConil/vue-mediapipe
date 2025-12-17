@@ -1,5 +1,3 @@
 export { BaseAnalyzer } from './BaseAnalyzer';
-
-// Import concrete analyzers here when they are created
-// export { PinchAnalyzer } from './PinchAnalyzer';
-// export { GestureAnalyzer } from './GestureAnalyzer';
+export { TapTipDetection } from './tapTipDetection';
+export { Analyzers } from './Analyzers';
