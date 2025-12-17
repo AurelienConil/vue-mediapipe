@@ -111,10 +111,10 @@ export class MediaPipeProcessor {
             });
 
             // 5. Run analyzers
-            console.log(`🧠 Exécution de ${this.analyzersManager.getAnalyzers().length} analyzers`);
+            //console.log(`🧠 Exécution de ${this.analyzersManager.getAnalyzers().length} analyzers`);
             this.analyzersManager.getAnalyzers().forEach(analyzer => {
                 if (analyzer.isEnabled()) {
-                    console.log(`⚙️ Exécution analyzer: ${analyzer.name} (enabled: ${analyzer.isEnabled()})`);
+                    //console.log(`⚙️ Exécution analyzer: ${analyzer.name} (enabled: ${analyzer.isEnabled()})`);
                     analyzer.analyze();
                 }
             });

@@ -24,6 +24,7 @@ export class DistanceFinger extends BaseFeatureExtractor {
 
             const thumbTip = hand.landmarks[this.fingerTips.thumb];
             if (!this.isValidPoint(thumbTip)) {
+                console.log("Invalid thumb tip point, skipping hand.");
                 continue;
             }
 
@@ -32,6 +33,7 @@ export class DistanceFinger extends BaseFeatureExtractor {
                 if (fingerName === 'thumb') continue;
                 const fingerTip = hand.landmarks[tipIndex];
                 if (!this.isValidPoint(fingerTip)) {
+                    console.log("Invalid finger tip point, skipping hand.");
                     continue;
                 }
                 const distance = this.calculateDistance3D(thumbTip, fingerTip);
@@ -103,8 +105,8 @@ export class DistanceFinger extends BaseFeatureExtractor {
         if (!isFinite(x) || !isFinite(y) || !isFinite(z)) return false;
 
         // Vérifier que les coordonnées sont dans une plage raisonnable
-        if (x < -0.5 || x > 1.5 || y < -0.5 || y > 1.5) return false;
-        if (z < -1 || z > 1) return false;
+        if (x < -5 || x > 5 || y < -5 || y > 5) return false;
+        if (z < -5 || z > 5) return false;
 
         return true;
     }

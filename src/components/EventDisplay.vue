@@ -21,7 +21,7 @@ watch(event, (val) => {
     // Remove event after display (e.g., after 2s)
     setTimeout(() => {
       eventBusStore.clearEvent();
-    }, 2000);
+    }, 1000);
   }
 });
 </script>
