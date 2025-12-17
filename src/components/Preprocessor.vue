@@ -380,17 +380,20 @@ const drawHand3D = (p: p5, landmarks: any[]) => {
   p.strokeWeight(2);
 
   for (const [start, end] of HAND_CONNECTIONS) {
-    const startPoint = points3D[start];
-    const endPoint = points3D[end];
-    if (startPoint && endPoint) {
-      p.line(
-        startPoint.x,
-        startPoint.y,
-        startPoint.z,
-        endPoint.x,
-        endPoint.y,
-        endPoint.z
-      );
+    //check start and end are not undefined
+    if (start !== undefined && end !== undefined) {
+      const startPoint = points3D[start];
+      const endPoint = points3D[end];
+      if (startPoint && endPoint) {
+        p.line(
+          startPoint.x,
+          startPoint.y,
+          startPoint.z,
+          endPoint.x,
+          endPoint.y,
+          endPoint.z
+        );
+      }
     }
   }
 

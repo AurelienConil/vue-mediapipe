@@ -67,7 +67,9 @@ export const useMediaPipeStore = defineStore('mediaPipe', () => {
                     processCurrentFrame(handResults)
                 }
                 // Cloner l'objet pour éviter les problèmes de proxy
-                results.value = JSON.parse(JSON.stringify(handResults))
+               // results.value = JSON.parse(JSON.stringify(handResults))
+               results.value = { ...handResults }
+
             })
 
             // Attendre que MediaPipe soit initialisé

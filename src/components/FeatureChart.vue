@@ -15,10 +15,9 @@ import {
   LineController,
   Filler,
   Legend,
-  Tooltip,
-  ChartConfiguration,
-  ChartData,
+  Tooltip
 } from "chart.js";
+import type { ChartConfiguration, ChartData } from "chart.js";
 import type { Feature } from "../mediapipe/types";
 
 // Enregistrer les composants Chart.js nécessaires
@@ -152,7 +151,7 @@ function initChart() {
           displayColors: false,
           callbacks: {
             title: () => props.feature.name,
-            label: (context) => `${context.parsed.y.toFixed(3)}`,
+            label: (context) => context.parsed.y != null ? `${context.parsed.y.toFixed(3)}` : '',
           },
         },
       },

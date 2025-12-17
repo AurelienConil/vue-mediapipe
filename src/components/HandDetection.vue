@@ -146,41 +146,29 @@ const stopCamera = () => {
 watch(
   results,
   (newResults) => {
-    //console.log("Nouveau résultat reçu:", newResults);
-
     if (newResults && canvasRef.value) {
       const canvasCtx = canvasRef.value.getContext("2d")!;
-
-      // Effacer le canvas
       canvasCtx.save();
       canvasCtx.clearRect(0, 0, canvasRef.value.width, canvasRef.value.height);
-
       if (
         newResults.multiHandLandmarks &&
         newResults.multiHandLandmarks.length > 0
       ) {
         for (const landmarks of newResults.multiHandLandmarks) {
-          // Dessiner les connexions (squelette)
           drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {
             color: "#00FF00",
             lineWidth: 3,
           });
-
-          // Dessiner les points de repère
           drawLandmarks(canvasCtx, landmarks, {
             color: "#FF0000",
             lineWidth: 2,
             radius: 4,
           });
         }
-      } else {
-        console.log("Aucune main détectée");
       }
-
       canvasCtx.restore();
     }
-  },
-  { deep: true }
+  }
 );
 
 onUnmounted(() => {

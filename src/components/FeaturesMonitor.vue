@@ -151,9 +151,11 @@ const categoryOptions = computed(() => {
 
   // Ajouter les catégories disponibles
   const categories = new Set<string>();
-  for (const [, feature] of features.value) {
-    if (feature.parents) {
-      categories.add(feature.parents);
+  if (features.value) {
+    for (const [, feature] of features.value) {
+      if (feature.parents) {
+        categories.add(feature.parents);
+      }
     }
   }
 
@@ -179,15 +181,15 @@ const availableFingers: Finger[] = [
 const selectedFingers = ref<Set<Finger>>(new Set(availableFingers)); // Tous sélectionnés par défaut
 
 // Filtrage par catégories (pour compatibilité avec l'ancien code)
-const availableCategories = computed(() => {
-  const categories = new Set<string>();
-  for (const [, feature] of features.value) {
-    if (feature.parents) {
-      categories.add(feature.parents);
-    }
-  }
-  return Array.from(categories).sort();
-});
+// const availableCategories = computed(() => {
+//   const categories = new Set<string>();
+//   for (const [, feature] of features.value) {
+//     if (feature.parents) {
+//       categories.add(feature.parents);
+//     }
+//   }
+//   return Array.from(categories).sort();
+// });
 
 // Système de favoris
 const favorites = ref<Set<string>>(new Set());
@@ -201,15 +203,18 @@ const filteredFeatures = computed(() => {
   let fingersFiltered = 0;
   let categoryFiltered = 0;
 
+  if (!features.value) {
+    return filtered;
+  }
+
   for (const [key, feature] of features.value) {
     totalProcessed++;
     let shouldInclude = true;
-    let filterReason = "";
 
     // Filtre par doigts (toujours appliqué)
     if (feature.finger && !selectedFingers.value.has(feature.finger)) {
       shouldInclude = false;
-      filterReason = `finger ${feature.finger} not selected`;
+
       fingersFiltered++;
     }
 
@@ -218,14 +223,14 @@ const filteredFeatures = computed(() => {
       if (selectedCategory.value === "favorites") {
         if (!favorites.value.has(key)) {
           shouldInclude = false;
-          filterReason = "not in favorites";
+
           categoryFiltered++;
         }
       } else {
         // Catégorie spécifique
         if (feature.parents !== selectedCategory.value) {
           shouldInclude = false;
-          filterReason = `category ${feature.parents} != ${selectedCategory.value}`;
+
           categoryFiltered++;
         }
       }
@@ -253,14 +258,17 @@ const filteredFeatures = computed(() => {
         Array.from(filtered.keys()).slice(0, 3)
       );
       // Show sample feature structure
-      const [firstKey, firstFeature] = Array.from(filtered.entries())[0];
-      console.log(`   - Sample feature structure:`, {
-        key: firstKey,
-        name: firstFeature.name,
-        display: firstFeature.display,
-        value: firstFeature.value,
-        type: firstFeature.type,
-      });
+      const firstEntry = Array.from(filtered.entries())[0];
+      if (firstEntry) {
+        const [firstKey, firstFeature] = firstEntry;
+        console.log(`   - Sample feature structure:`, {
+          key: firstKey,
+          name: firstFeature.name,
+          display: firstFeature.display,
+          value: firstFeature.value,
+          type: firstFeature.type,
+        });
+      }
     } else {
       console.log(`   - No features passed filters!`);
       if (totalProcessed > 0) {
