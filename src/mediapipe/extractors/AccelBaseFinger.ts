@@ -1,6 +1,6 @@
 import { BaseFeatureExtractor } from './BaseFeatureExtractor';
 import type { MediaPipeFrame, Feature, HandData, HandLandmarks, Finger, HandSide } from '../types';
-import type { FeatureStore } from '../../stores/FeatureStore';
+import type { useFeatureStore } from '../../stores/FeatureStore';
 
 interface FingerVelocityData {
     position: { x: number; y: number; z: number };
@@ -48,7 +48,10 @@ export class AccelBaseFinger extends BaseFeatureExtractor {
                     };
 
                     // Calcul de l'angle entre les deux segments (en radians)
-                    const angle = this.calculateAngle2D(baseVec, tipVec);
+                    const rawAngle = this.calculateAngle2D(baseVec, tipVec);
+
+                    // Normalisation de l'angle selon le type de main pour avoir des valeurs cohérentes
+                    const angle = this.normalizeAngleForHand(rawAngle, hand.handedness);
 
                     // Calcul vitesse angulaire
                     const angularVelocity = this.calculateAngularVelocity(angle, frame.timestamp, fingerName, hand.handedness);
@@ -100,6 +103,16 @@ export class AccelBaseFinger extends BaseFeatureExtractor {
         const dot = v1.x * v2.x + v1.y * v2.y;
         const det = v1.x * v2.y - v1.y * v2.x;
         return Math.atan2(det, dot);
+    }
+
+    // Normalise l'angle selon le type de main pour avoir des valeurs cohérentes
+    private normalizeAngleForHand(angle: number, handedness: HandSide): number {
+        // Pour la main gauche, on inverse le signe de l'angle pour avoir
+        // des valeurs cohérentes avec la main droite
+        if (handedness === 'Left') {
+            return angle;
+        }
+        return -angle;
     }
 
 

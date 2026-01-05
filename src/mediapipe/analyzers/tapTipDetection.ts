@@ -1,5 +1,5 @@
 import { BaseAnalyzer } from './BaseAnalyzer';
-import type { FeatureStore } from '../../stores/FeatureStore';
+import type { useFeatureStore } from '../../stores/FeatureStore';
 import { eventBus, eventHistory } from '../../stores/eventBusStore';
 import type { Feature, Event, HandSide } from '../types';
 
@@ -167,16 +167,18 @@ export class TapTipDetection extends BaseAnalyzer {
             distancePeak > 0.5 &&
             distanceEnd < 0.3;
         // Angular speed condition
+
         const angularCondition =
             Math.abs(angularStart) < 4.0 &&
-            angularDip < -6 &&
+            angularDip > 6 &&
             Math.abs(angularEnd) < 4.0;
 
         // Proximity condition: thumb must be very close to finger
         const proximityCondition = thumbToFingerDistance < 0.05;
-
         //il faut au moins 2 conditions vraies pour valider le tap
-        const conditionsMet = [distanceCondition, angularCondition, proximityCondition].filter(Boolean).length >= 3;
+        //const conditionsMet = [distanceCondition, angularCondition, proximityCondition].filter(Boolean).length >= 3;
+        // Les 3 conditions doivent être remplies
+        const conditionsMet = distanceCondition && angularCondition && proximityCondition;
 
         return conditionsMet;
     }

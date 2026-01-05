@@ -19,7 +19,6 @@
             :height="480"
             autoplay
             muted
-            style="transform: scaleX(-1)"
           ></video>
 
           <canvas
@@ -27,7 +26,7 @@
             :width="640"
             :height="480"
             class="overlay-canvas"
-            style="position: absolute; top: 0; left: 0; transform: scaleX(-1)"
+            style="position: absolute; top: 0; left: 0"
           ></canvas>
         </div>
 
@@ -52,6 +51,10 @@
           <v-chip color="success">
             <v-icon left>mdi-check</v-icon>
             {{ results.multiHandLandmarks.length }} main(s) détectée(s)
+          </v-chip>
+          <v-chip color="success" v-if="results.multiHandedness">
+            Première main :
+            {{ results.multiHandedness[0]?.label }}
           </v-chip>
         </div>
       </div>
@@ -117,8 +120,6 @@ const startCamera = async () => {
       },
       width: 640,
       height: 480,
-      facingMode: "user",
-
     });
 
     console.log("Démarrage de la caméra...");

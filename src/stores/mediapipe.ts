@@ -49,7 +49,7 @@ export const useMediaPipeStore = defineStore('mediaPipe', () => {
                 minDetectionConfidence: 0.7,
                 minTrackingConfidence: 0.5,
                 staticImageMode: false,
-                selfieMode: coreStore.getCoordinateSystem() === 'selfie'
+                selfieMode: false
             })
 
             // Définir le callback onResults

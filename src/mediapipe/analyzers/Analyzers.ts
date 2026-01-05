@@ -1,6 +1,6 @@
 import { eventBus, eventHistory } from '../../stores/eventBusStore';
 import { TapTipDetection } from './tapTipDetection';
-import type { FeatureStore } from '../../stores/FeatureStore';
+import type { useFeatureStore } from '../../stores/FeatureStore';
 
 /**
  * Classe centralisant l'instanciation des analyzers.
