@@ -16,5 +16,20 @@ export default defineConfig({
   },
   define: {
     global: 'globalThis'
+  },
+  optimizeDeps: {
+    include: ['@mediapipe/hands', '@mediapipe/camera_utils', '@mediapipe/drawing_utils']
+  },
+  build: {
+    commonjsOptions: {
+      include: [/node_modules/]
+    },
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          mediapipe: ['@mediapipe/hands', '@mediapipe/camera_utils', '@mediapipe/drawing_utils']
+        }
+      }
+    }
   }
 })

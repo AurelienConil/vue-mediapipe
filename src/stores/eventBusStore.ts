@@ -11,7 +11,7 @@ interface DisplayEvent extends Event {
 
 // Singleton EventBus instance, exportée pour tout le projet
 export const eventHistory = new EventHistory();
-export const eventBus = new EventBus(eventHistory);
+export const eventBus = new EventBus();
 
 export const useEventBusStore = defineStore('eventBus', () => {
     const events = ref<DisplayEvent[]>([]);

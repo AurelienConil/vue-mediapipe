@@ -1,11 +1,10 @@
 import { BaseFeatureExtractor } from './BaseFeatureExtractor';
-import type { MediaPipeFrame, Feature, HandData, HandLandmarks, HandSide } from '../types';
-import type { FeatureStore } from '../../stores/FeatureStore';
+import type { MediaPipeFrame, Feature, HandData, HandLandmarks } from '../types';
 
 export class HandSizeNormalise extends BaseFeatureExtractor {
     readonly name = 'HandSizeNormalise';
 
-    extract(frame: MediaPipeFrame, featureStore: FeatureStore): Feature[] {
+    extract(frame: MediaPipeFrame): Feature[] {
         const features: Feature[] = [];
 
         // Vérifier qu'il y a au moins une main détectée
@@ -28,8 +27,12 @@ export class HandSizeNormalise extends BaseFeatureExtractor {
             const indexTip = hand.landmarks[8];        // Point 8 : bout de l'index (TIP)
 
             // Vérifications strictes de validité des points
-            if (!this.isValidPoint(wrist) || !this.isValidPoint(middleBase) ||
-                !this.isValidPoint(indexBase) || !this.isValidPoint(indexTip)) {
+            if (!this.isValidPoint(wrist) || !wrist ||
+                !this.isValidPoint(middleBase) || !middleBase ||
+                !this.isValidPoint(indexBase) || !indexBase ||
+                !this.isValidPoint(indexBase2) || !indexBase2 ||
+                !this.isValidPoint(indexMid) || !indexMid ||
+                !this.isValidPoint(indexTip) || !indexTip) {
                 continue; // Skip si les points ne sont pas valides
             }
 
@@ -128,7 +131,7 @@ export class HandSizeNormalise extends BaseFeatureExtractor {
         const wrist = hand.landmarks[0];
         const middleBase = hand.landmarks[9];
 
-        if (this.isValidPoint(wrist) && this.isValidPoint(middleBase)) {
+        if (this.isValidPoint(wrist) && wrist && this.isValidPoint(middleBase) && middleBase) {
             return this.calculateDistance3D(wrist, middleBase);
         }
 

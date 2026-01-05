@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, markRaw, watch } from 'vue'
-import { Hands, type Results } from '@mediapipe/hands'
+import { ref } from 'vue'
 import { MediaPipeProcessor } from '@/mediapipe'
 import { AccelBaseFinger } from '@/mediapipe/extractors/AccelBaseFinger'
 import { HandSizeNormalise } from '@/mediapipe/extractors/HandSizeNormalise'
@@ -11,14 +10,14 @@ import { useCoreStore } from '@/stores/CoreStore'
 export const useMediaPipeStore = defineStore('mediaPipe', () => {
     const isInitialized = ref(false)
     const isDetecting = ref(false)
-    const results = ref<Results | null>(null)
+    const results = ref<any | null>(null)
     const error = ref<string | null>(null)
 
     // Utilisation du CoreStore
     const coreStore = useCoreStore()
 
     // Utiliser une variable non-reactive pour l'instance MediaPipe
-    let handsInstance: Hands | null = null
+    let handsInstance: any | null = null
 
     // Utiliser une variable mutable pour le processor (pour permettre le reinitialisation)
     let processor = new MediaPipeProcessor()
@@ -34,11 +33,22 @@ export const useMediaPipeStore = defineStore('mediaPipe', () => {
     const initializeHands = async () => {
         try {
             console.log('Création de l\'instance Hands...');
+            
+            // Vérifier que MediaPipe est chargé via le script global
+            if (typeof (window as any).Hands === 'undefined') {
+                throw new Error('MediaPipe Hands n\'est pas chargé. Vérifiez que le script CDN est bien inclus.');
+            }
 
-            // Créer l'instance sans reactive wrapper pour éviter les conflits de proxy
-            const newHandsInstance = new Hands({
-                locateFile: (file) => {
-                    return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+            // Utiliser la classe globale Hands
+            const HandsClass = (window as any).Hands;
+            
+            // Créer l'instance
+            const newHandsInstance = new HandsClass({
+                locateFile: (file: string) => {
+                    // En production, utiliser le CDN avec version spécifique
+                    const baseUrl = 'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240';
+                    console.log(`Chargement fichier MediaPipe: ${baseUrl}/${file}`);
+                    return `${baseUrl}/${file}`;
                 }
             })
 
@@ -48,12 +58,11 @@ export const useMediaPipeStore = defineStore('mediaPipe', () => {
                 modelComplexity: 1,
                 minDetectionConfidence: 0.7,
                 minTrackingConfidence: 0.5,
-                staticImageMode: false,
                 selfieMode: false
             })
 
             // Définir le callback onResults
-            newHandsInstance.onResults((handResults: Results) => {
+            newHandsInstance.onResults((handResults: any) => {
 
                 if (handResults.multiHandLandmarks) {
 
@@ -107,7 +116,7 @@ export const useMediaPipeStore = defineStore('mediaPipe', () => {
     }
 
     // Méthode pour traiter une frame avec le processor actuel
-    const processCurrentFrame = (handResults: Results) => {
+    const processCurrentFrame = (handResults: any) => {
         processor.processFrame(handResults)
         frameCount.value++
     }

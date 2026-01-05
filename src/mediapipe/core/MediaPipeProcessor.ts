@@ -1,16 +1,12 @@
 import type { MediaPipeFrame, HandData } from '../types';
 import { useFeatureStore } from '../../stores/FeatureStore';
 import { useCoreStore } from '../../stores/CoreStore';
-import { eventBus, eventHistory } from '../../stores/eventBusStore';
 import type { BaseFeatureExtractor } from '../extractors/BaseFeatureExtractor';
-import type { BaseAnalyzer } from '../analyzers/BaseAnalyzer';
 import { BasePreprocessor } from '../preprocessors/BasePreprocessor';
 import { Analyzers } from '../analyzers/Analyzers';
 
 export class MediaPipeProcessor {
     private featureStore = useFeatureStore();
-    private eventHistory = eventHistory;
-    private eventBus = eventBus;
     private coreStore = useCoreStore();
     private preprocessors: BasePreprocessor[] = [];
     private extractors: BaseFeatureExtractor[] = [];
@@ -28,7 +24,7 @@ export class MediaPipeProcessor {
 
     addExtractor(extractor: BaseFeatureExtractor): void {
         this.extractors.push(extractor);
-        console.log(`✅ Extractor ajouté: ${extractor.name} (${extractor.id})`);
+        console.log(`✅ Extractor ajouté: ${extractor.name}`);
     }
 
     // Info sur les extractors (tous sont toujours actifs pour les calculs)
@@ -41,7 +37,7 @@ export class MediaPipeProcessor {
 
 
 
-    getFeatureStore(): FeatureStore {
+    getFeatureStore() {
         return this.featureStore;
     }
 
@@ -101,7 +97,7 @@ export class MediaPipeProcessor {
 
             this.extractors.forEach(extractor => {
                 //console.log(`⚙️ Exécution extractor: ${extractor.name}`);
-                const features = extractor.extract(frame, this.featureStore);
+                const features = extractor.extract(frame);
                 //console.log(`✨ Features extraites (${features.length}):`, features);
 
                 features.forEach(feature => {

@@ -1,14 +1,12 @@
 import type { Event } from '../types';
-import { EventHistory } from './EventHistory';
 
 type EventCallback = (event: Event) => void;
 
 export class EventBus {
     private listeners = new Map<string, EventCallback[]>();
-    private eventHistory: EventHistory;
 
-    constructor(eventHistory: EventHistory) {
-        this.eventHistory = eventHistory;
+    constructor() {
+        // Constructor simplified - no parameters needed
     }
 
 

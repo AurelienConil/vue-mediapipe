@@ -1,11 +1,10 @@
 import { BaseFeatureExtractor } from './BaseFeatureExtractor';
-import type { MediaPipeFrame, Feature, HandData, HandLandmarks, HandSide } from '../types';
-import type { FeatureStore } from '../../stores/FeatureStore';
+import type { MediaPipeFrame, Feature, HandLandmarks } from '../types';
 
 export class HandOrientationInSpace extends BaseFeatureExtractor {
     readonly name = 'HandOrientationInSpace';
 
-    extract(frame: MediaPipeFrame, featureStore: FeatureStore): Feature[] {
+    extract(frame: MediaPipeFrame): Feature[] {
         const features: Feature[] = [];
 
         for (const hand of frame.hands) {
@@ -20,9 +19,11 @@ export class HandOrientationInSpace extends BaseFeatureExtractor {
             const indexTip = hand.landmarks[8];        // Point 8 : bout de l'index
 
             // Vérifier que tous les points nécessaires sont valides
-            if (!this.isValidPoint(wrist) || !this.isValidPoint(indexBase) ||
-                !this.isValidPoint(middleBase) || !this.isValidPoint(pinkyBase) ||
-                !this.isValidPoint(indexTip)) {
+            if (!this.isValidPoint(wrist) || !wrist ||
+                !this.isValidPoint(indexBase) || !indexBase ||
+                !this.isValidPoint(middleBase) || !middleBase ||
+                !this.isValidPoint(pinkyBase) || !pinkyBase ||
+                !this.isValidPoint(indexTip) || !indexTip) {
                 continue; // Skip si les points ne sont pas valides
             }
 
@@ -70,8 +71,8 @@ export class HandOrientationInSpace extends BaseFeatureExtractor {
 
                 // Feature: Orientation combinée (pour analyse globale)
                 const combinedOrientation = Math.sqrt(
-                    orientation.tilt ** 2 + 
-                    orientation.pan ** 2 + 
+                    orientation.tilt ** 2 +
+                    orientation.pan ** 2 +
                     orientation.roll ** 2
                 );
                 features.push({
@@ -129,8 +130,8 @@ export class HandOrientationInSpace extends BaseFeatureExtractor {
 
         // Roll: rotation autour de l'axe principal de la main
         // Calculé à partir de l'angle entre la direction de la main et le plan horizontal
-        const roll = Math.atan2(handDirectionNormalized.z, 
-                               Math.sqrt(handDirectionNormalized.x ** 2 + handDirectionNormalized.y ** 2));
+        const roll = Math.atan2(handDirectionNormalized.z,
+            Math.sqrt(handDirectionNormalized.x ** 2 + handDirectionNormalized.y ** 2));
 
         // Normaliser les valeurs entre -1 et 1 pour cohérence avec d'autres features
         return {
@@ -158,11 +159,11 @@ export class HandOrientationInSpace extends BaseFeatureExtractor {
 
     private normalizeVector(v: { x: number; y: number; z: number }): { x: number; y: number; z: number } | null {
         const length = Math.sqrt(v.x ** 2 + v.y ** 2 + v.z ** 2);
-        
+
         if (length === 0) {
             return null;
         }
-        
+
         return {
             x: v.x / length,
             y: v.y / length,
@@ -173,11 +174,11 @@ export class HandOrientationInSpace extends BaseFeatureExtractor {
     private clampAndNormalize(value: number, min: number, max: number): number {
         // Clamp la valeur dans la plage
         const clamped = Math.max(min, Math.min(max, value));
-        
+
         // Normaliser entre -1 et 1 si nécessaire
         if (clamped > max) return max;
         if (clamped < min) return min;
-        
+
         return clamped;
     }
 

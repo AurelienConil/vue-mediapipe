@@ -1,7 +1,9 @@
 import { BaseAnalyzer } from './BaseAnalyzer';
 import type { useFeatureStore } from '../../stores/FeatureStore';
 import { eventBus, eventHistory } from '../../stores/eventBusStore';
-import type { Feature, Event, HandSide } from '../types';
+import type { Event } from '../types';
+
+type FeatureStore = ReturnType<typeof useFeatureStore>;
 
 type FingerName = 'index' | 'middle' | 'ring' | 'pinky';
 
@@ -18,7 +20,6 @@ interface FingerBuffers {
  */
 export class TapTipDetection extends BaseAnalyzer {
     readonly name = 'TapTipDetection';
-    private lastEmitTimestamp: number = 0;
     private bufferSize: number = 7; // Corresponds to 500ms if analyze is called every 50ms
     private fingers: FingerName[] = ['index', 'middle', 'ring', 'pinky'];
     private fingerBuffers: Map<FingerName, FingerBuffers> = new Map();
@@ -57,7 +58,6 @@ export class TapTipDetection extends BaseAnalyzer {
 
     analyze() {
         const now = Date.now();
-        this.lastEmitTimestamp = now;
 
         // Update buffers for all fingers
         this.fingers.forEach(finger => {
@@ -98,7 +98,7 @@ export class TapTipDetection extends BaseAnalyzer {
             const distanceFeature = this.featureStore.getFeature(`thumb_to_${finger}_distance`);
             const distance = distanceFeature?.value;
 
-            if (distance !== undefined && distance < minDistance) {
+            if (distance !== undefined && typeof distance === 'number' && distance < minDistance) {
                 minDistance = distance;
                 closestFinger = finger;
             }
@@ -122,11 +122,15 @@ export class TapTipDetection extends BaseAnalyzer {
         if (!buffers) return;
 
         if (distanceSpeed !== undefined) {
-            this.updateBuffer(buffers.distanceSpeed, distanceSpeed);
+            if (typeof distanceSpeed === 'number') {
+                this.updateBuffer(buffers.distanceSpeed, distanceSpeed);
+            }
         }
 
         if (angularSpeed !== undefined) {
-            this.updateBuffer(buffers.angularSpeed, angularSpeed);
+            if (typeof angularSpeed === 'number') {
+                this.updateBuffer(buffers.angularSpeed, angularSpeed);
+            }
         }
     }
 
@@ -163,18 +167,20 @@ export class TapTipDetection extends BaseAnalyzer {
 
         // Speed of the distance
         const distanceCondition =
+            distanceStart !== undefined && distancePeak !== undefined && distanceEnd !== undefined &&
             distanceStart < 0.3 &&
             distancePeak > 0.5 &&
             distanceEnd < 0.3;
         // Angular speed condition
 
         const angularCondition =
+            angularStart !== undefined && angularDip !== undefined && angularEnd !== undefined &&
             Math.abs(angularStart) < 4.0 &&
             angularDip > 6 &&
             Math.abs(angularEnd) < 4.0;
 
         // Proximity condition: thumb must be very close to finger
-        const proximityCondition = thumbToFingerDistance < 0.05;
+        const proximityCondition = typeof thumbToFingerDistance === 'number' && thumbToFingerDistance < 0.05;
         //il faut au moins 2 conditions vraies pour valider le tap
         //const conditionsMet = [distanceCondition, angularCondition, proximityCondition].filter(Boolean).length >= 3;
         // Les 3 conditions doivent être remplies

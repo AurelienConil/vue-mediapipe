@@ -1,13 +1,5 @@
 import { BaseFeatureExtractor } from './BaseFeatureExtractor';
-import type { MediaPipeFrame, Feature, HandData, HandLandmarks, Finger, HandSide } from '../types';
-import type { useFeatureStore } from '../../stores/FeatureStore';
-
-interface FingerVelocityData {
-    position: { x: number; y: number; z: number };
-    velocity: { x: number; y: number; z: number };
-    speed: number;
-    timestamp: number;
-}
+import type { MediaPipeFrame, Feature, Finger, HandSide } from '../types';
 
 export class AccelBaseFinger extends BaseFeatureExtractor {
     readonly name = 'AccelBaseFinger';
@@ -25,7 +17,7 @@ export class AccelBaseFinger extends BaseFeatureExtractor {
     private previousAngle = new Map<string, { angle: number; timestamp: number }>();
     private previousAngularVelocity = new Map<string, { velocity: number; acceleration: number; timestamp: number }>();
 
-    extract(frame: MediaPipeFrame, featureStore: FeatureStore): Feature[] {
+    extract(frame: MediaPipeFrame): Feature[] {
         const features: Feature[] = [];
 
         for (const hand of frame.hands) {
@@ -140,34 +132,6 @@ export class AccelBaseFinger extends BaseFeatureExtractor {
         return velocity;
     }
 
-
-    // Calcule l'accélération angulaire (rad/s²)
-    private calculateAngularAcceleration(
-        currentVelocity: number,
-        timestamp: number,
-        fingerName: string,
-        hand: HandSide
-    ): number | null {
-        const key = `${fingerName}_${hand}`;
-        const prev = this.previousAngularVelocity.get(key);
-        if (!prev) {
-            this.previousAngularVelocity.set(key, {
-                velocity: currentVelocity,
-                acceleration: 0,
-                timestamp
-            });
-            return 0;
-        }
-        const deltaTime = (timestamp - prev.timestamp) / 1000;
-        if (deltaTime <= 0) return null;
-        const acceleration = (currentVelocity - prev.velocity) / deltaTime;
-        this.previousAngularVelocity.set(key, {
-            velocity: currentVelocity,
-            acceleration,
-            timestamp
-        });
-        return acceleration;
-    }
 
     // Méthode pour réinitialiser l'historique si nécessaire
     clearHistory(): void {

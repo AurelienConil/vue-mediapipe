@@ -64,10 +64,15 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from "vue";
-import { Camera } from "@mediapipe/camera_utils";
-import { drawConnectors, drawLandmarks } from "@mediapipe/drawing_utils";
-import { HAND_CONNECTIONS } from "@mediapipe/hands";
-import { useMediaPipeStore } from "@/stores/mediapipe";
+// import { Camera } from "@mediapipe/camera_utils";
+// import { drawConnectors, drawLandmarks } from "@mediapipe/drawing_utils";
+// import { HAND_CONNECTIONS } from "@mediapipe/hands";
+// Utiliser les variables globales à la place
+const Camera = (window as any).Camera;
+const drawConnectors = (window as any).drawConnectors;
+const drawLandmarks = (window as any).drawLandmarks;
+const HAND_CONNECTIONS = (window as any).HAND_CONNECTIONS;
+import { useMediaPipeStore } from "../stores/mediapipe";
 import { storeToRefs } from "pinia";
 
 const mediaPipeStore = useMediaPipeStore();
@@ -78,7 +83,7 @@ const videoRef = ref<HTMLVideoElement>();
 const canvasRef = ref<HTMLCanvasElement>();
 const loading = ref(false);
 
-let camera: Camera | null = null;
+let camera: any | null = null;
 
 onMounted(async () => {
   console.log("Composant monté, initialisation de MediaPipe...");
@@ -97,11 +102,12 @@ onMounted(async () => {
 const startCamera = async () => {
   const handsInstance = mediaPipeStore.getHandsInstance();
 
-  if (!isInitialized.value || !videoRef.value || !handsInstance) {
+  if (!isInitialized.value || !videoRef.value || !handsInstance || !Camera) {
     console.log("Conditions non remplies:", {
       isInitialized: isInitialized.value,
       video: !!videoRef.value,
       hands: !!handsInstance,
+      camera: !!Camera,
     });
     return;
   }

@@ -5,8 +5,8 @@ import FeaturesMonitor from "./components/FeaturesMonitor.vue";
 import CoreStatusMonitor from "./components/CoreStatusMonitor.vue";
 import PreprocessorControl from "./components/PreprocessorControl.vue";
 import Preprocessor from "./components/Preprocessor.vue";
-import { useMediaPipeStore } from "@/stores/mediapipe";
-import { useCoreStore } from "@/stores/coreStore";
+import { useMediaPipeStore } from "./stores/mediapipe";
+import { useCoreStore } from "./stores/CoreStore";
 const coreStore = useCoreStore();
 import EventDisplay from "./components/EventDisplay.vue";
 
@@ -57,9 +57,7 @@ const showFeaturesMonitor = computed(
   () => currentView.value === "default" || currentView.value === "3d"
 );
 
-const showEventDisplay = computed(
-  () => currentView.value === "default"
-);
+const showEventDisplay = computed(() => currentView.value === "default");
 const showPreprocessor = computed(
   () => currentView.value === "3d" || currentView.value === "camera"
 );
@@ -76,7 +74,7 @@ const showPreprocessorControl = computed(
     <v-app-bar color="primary" dark>
       <v-app-bar-title>
         <v-icon left>mdi-hand-wave</v-icon>
-        VuePipe 
+        VuePipe
       </v-app-bar-title>
 
       <v-spacer></v-spacer>
@@ -94,7 +92,7 @@ const showPreprocessorControl = computed(
           v-for="view in views"
           :key="view.key"
           :value="view.key"
-          @click="setView(view.key as ViewType)"
+          @click="() => setView(view.key)"
           variant="text"
           class="mx-1"
         >
@@ -128,7 +126,6 @@ const showPreprocessorControl = computed(
           >
             <FeaturesMonitor
               :feature-store="mediaPipeStore.getFeatureStore()"
-              :processor-version="mediaPipeStore.processorVersion"
             />
           </v-col>
 
@@ -138,15 +135,11 @@ const showPreprocessorControl = computed(
             class="pl-2"
             :style="{ display: showEventDisplay ? 'block' : 'none' }"
           >
-           <EventDisplay />
+            <EventDisplay />
           </v-col>
 
           <!-- Colonne 3 : Preprocessor -->
-          <v-col
-            cols="6"
-            class="pr-2"
-            v-if="showPreprocessor"
-          >
+          <v-col cols="6" class="pr-2" v-if="showPreprocessor">
             <Preprocessor />
           </v-col>
 

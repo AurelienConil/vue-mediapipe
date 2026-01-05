@@ -1,10 +1,6 @@
 <template>
   <div class="number-display">
-    <v-progress-linear
-      :model-value="normalizedValue"
-      height="12"
-      rounded
-    >
+    <v-progress-linear :model-value="normalizedValue" height="12" rounded>
       <template #default>
         <small class="text-white">{{ formatValue(feature.value) }}</small>
       </template>
@@ -42,24 +38,7 @@ const formatValue = (value: string | boolean | number): string => {
   return String(value);
 };
 
-// Get feature color based on type and value
-const getFeatureColor = (feature: Feature): string => {
-  switch (feature.type) {
-    case "number":
-      if (typeof feature.value === "number") {
-        const normalized = normalizedValue.value;
-        if (normalized > 80) return "red";
-        if (normalized > 60) return "orange";
-        if (normalized > 40) return "yellow";
-        return "green";
-      }
-      return "blue";
-    case "bool":
-      return feature.value ? "green" : "red";
-    default:
-      return "grey";
-  }
-};
+// Removed unused getFeatureColor function
 </script>
 
 <style scoped>

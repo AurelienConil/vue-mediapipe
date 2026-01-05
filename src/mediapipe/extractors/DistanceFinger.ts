@@ -1,9 +1,11 @@
 import { BaseFeatureExtractor } from './BaseFeatureExtractor';
-import type { MediaPipeFrame, Feature, HandData, HandLandmarks, HandSide, Finger } from '../types';
-import type { FeatureStore } from '../../stores/FeatureStore';
+import type { MediaPipeFrame, Feature, HandLandmarks, Finger } from '../types';
 
 export class DistanceFinger extends BaseFeatureExtractor {
     readonly name = 'DistanceFinger';
+    
+    // Cache local pour stocker les valeurs précédentes
+    private previousValues = new Map<string, { value: number; timestamp: number }>();
 
     // Mapping des bouts de doigts (TIP landmarks)
     private readonly fingerTips: Record<Finger, number> = {
@@ -14,7 +16,7 @@ export class DistanceFinger extends BaseFeatureExtractor {
         pinky: 20    // Bout de l'auriculaire
     };
 
-    extract(frame: MediaPipeFrame, featureStore: FeatureStore): Feature[] {
+    extract(frame: MediaPipeFrame): Feature[] {
         const features: Feature[] = [];
 
         for (const hand of frame.hands) {
@@ -23,7 +25,7 @@ export class DistanceFinger extends BaseFeatureExtractor {
             }
 
             const thumbTip = hand.landmarks[this.fingerTips.thumb];
-            if (!this.isValidPoint(thumbTip)) {
+            if (!this.isValidPoint(thumbTip) || !thumbTip) {
                 console.log("Invalid thumb tip point, skipping hand.");
                 continue;
             }
@@ -32,23 +34,20 @@ export class DistanceFinger extends BaseFeatureExtractor {
             for (const [fingerName, tipIndex] of Object.entries(this.fingerTips)) {
                 if (fingerName === 'thumb') continue;
                 const fingerTip = hand.landmarks[tipIndex];
-                if (!this.isValidPoint(fingerTip)) {
+                if (!this.isValidPoint(fingerTip) || !fingerTip) {
                     console.log("Invalid finger tip point, skipping hand.");
                     continue;
                 }
                 const distance = this.calculateDistance3D(thumbTip, fingerTip);
 
                 // --- Ajout de la vitesse de la distance ---
-                // On récupère la dernière feature de distance pour ce doigt et cette main AVANT d'ajouter la nouvelle
-                const prevFeature = featureStore.getFeature(
-                    `thumb_to_${fingerName}_distance`,
-                    hand.handedness,
-                    fingerName as Finger
-                );
-                if (prevFeature && typeof prevFeature.value === 'number' && prevFeature.timestamp !== undefined) {
-                    const dt = (frame.timestamp - prevFeature.timestamp) / 1000; // en secondes
+                // On récupère la dernière valeur de distance pour ce doigt et cette main AVANT d'ajouter la nouvelle
+                const featureKey = `thumb_to_${fingerName}_distance`;
+                const prevValue = this.previousValues.get(featureKey);
+                if (prevValue && prevValue.timestamp !== undefined) {
+                    const dt = (frame.timestamp - prevValue.timestamp) / 1000; // en secondes
                     if (dt > 0) {
-                        const speed = Math.abs(distance - prevFeature.value) / dt;
+                        const speed = Math.abs(distance - prevValue.value) / dt;
                         features.push({
                             name: `thumb_to_${fingerName}_distance_speed`,
                             type: 'number',
@@ -62,8 +61,8 @@ export class DistanceFinger extends BaseFeatureExtractor {
                         });
                     }
                 }
-                // --- Fin ajout vitesse ---
 
+                // Ajouter la feature de distance de base
                 features.push({
                     name: `thumb_to_${fingerName}_distance`,
                     type: 'number',
@@ -74,6 +73,12 @@ export class DistanceFinger extends BaseFeatureExtractor {
                     timestamp: frame.timestamp,
                     hand: hand.handedness,
                     finger: fingerName as Finger
+                });
+                
+                // Mettre à jour le cache avec la nouvelle valeur (après avoir calculé la vitesse)
+                this.previousValues.set(featureKey, {
+                    value: distance,
+                    timestamp: frame.timestamp
                 });
             }
 

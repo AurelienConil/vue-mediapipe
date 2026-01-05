@@ -1,4 +1,5 @@
-import type { FeatureStore } from '../../stores/FeatureStore';
+import type { useFeatureStore } from '../../stores/FeatureStore';
+type FeatureStore = ReturnType<typeof useFeatureStore>;
 import type { EventBus } from '../core/EventBus';
 import type { EventHistory } from '../core/EventHistory';
 

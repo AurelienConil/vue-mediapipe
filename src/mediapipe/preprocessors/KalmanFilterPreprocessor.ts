@@ -92,6 +92,7 @@ export class KalmanFilterPreprocessor extends BasePreprocessor {
         KalmanFilterPreprocessor.FINGERTIP_INDICES.forEach(index => {
             if (index < landmarks.length) {
                 const landmark = landmarks[index];
+                if (!landmark) return;
                 handFilters.set(index, {
                     state: {
                         x: { pos: landmark.x, vel: 0, cov: 1 },

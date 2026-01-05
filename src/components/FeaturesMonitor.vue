@@ -335,15 +335,6 @@ const formatCategoryName = (category: string): string => {
 // Subscribe to all feature changes
 const subscriptions = new Map<string, () => void>();
 
-const subscribeToFeature = (featureName: string) => {
-  const unsubscribe = () => {
-    // TODO: Implement unsubscribe when FeatureStore has it
-  };
-
-  // For now, we'll poll the store periodically
-  subscriptions.set(featureName, unsubscribe);
-};
-
 // Format feature name for display
 const formatFeatureName = (name: string): string => {
   return name

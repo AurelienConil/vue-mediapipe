@@ -2,6 +2,8 @@ import { eventBus, eventHistory } from '../../stores/eventBusStore';
 import { TapTipDetection } from './tapTipDetection';
 import type { useFeatureStore } from '../../stores/FeatureStore';
 
+type FeatureStore = ReturnType<typeof useFeatureStore>;
+
 /**
  * Classe centralisant l'instanciation des analyzers.
  * Appeler `init(featureStore)` une fois que le FeatureStore est prêt.
@@ -19,7 +21,7 @@ export class Analyzers {
     init(featureStore: FeatureStore) {
         // Instancie ici tous les analyzers
         console.log('Initializing Analyzers...');
-        this.analyzers.push(new TapTipDetection(featureStore, this.eventBus, this.eventHistory));
+        this.analyzers.push(new TapTipDetection(featureStore));
         // ...ajoute d'autres analyzers ici si besoin
     }
 

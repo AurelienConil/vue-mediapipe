@@ -25,6 +25,7 @@ export class CenterPreprocessor extends BasePreprocessor {
             }
 
             const wrist = hand.landmarks[0];
+            if (!wrist) continue;
 
             const offsetX = wrist.x;
             const offsetY = wrist.y;

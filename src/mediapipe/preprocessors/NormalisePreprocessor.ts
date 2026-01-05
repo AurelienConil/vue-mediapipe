@@ -30,6 +30,10 @@ export class NormalisePreprocessor extends BasePreprocessor {
             // Points 5 et 17 (index MCP et pinky MCP)
             const p5 = hand.landmarks[5];
             const p17 = hand.landmarks[17];
+            if (!p5 || !p17) {
+                processedHands.push(hand);
+                continue;
+            }
             const dx = p17.x - p5.x;
             const dy = p17.y - p5.y;
             const dz = p17.z - p5.z;

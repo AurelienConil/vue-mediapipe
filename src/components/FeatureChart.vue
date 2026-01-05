@@ -103,7 +103,7 @@ const formattedValue = computed(() => {
   // If negative, sign is '-', else space
   const sign = value < 0 ? "-" : "+";
   // Always 3 digits for int part
-  const paddedInt = intPart.padStart(3, "0");
+  const paddedInt = (intPart || "0").padStart(3, "0");
   // Compose and pad to 8 chars (sign + 3 int + dot + 3 decimals)
   return `${sign}${paddedInt}.${decPart}`;
 });
