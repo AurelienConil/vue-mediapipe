@@ -3,7 +3,7 @@ import type { MediaPipeFrame, Feature, HandLandmarks, Finger } from '../types';
 
 export class DistanceFinger extends BaseFeatureExtractor {
     readonly name = 'DistanceFinger';
-    
+
     // Cache local pour stocker les valeurs précédentes
     private previousValues = new Map<string, { value: number; timestamp: number }>();
 
@@ -74,7 +74,7 @@ export class DistanceFinger extends BaseFeatureExtractor {
                     hand: hand.handedness,
                     finger: fingerName as Finger
                 });
-                
+
                 // Mettre à jour le cache avec la nouvelle valeur (après avoir calculé la vitesse)
                 this.previousValues.set(featureKey, {
                     value: distance,

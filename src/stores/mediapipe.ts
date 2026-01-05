@@ -33,7 +33,7 @@ export const useMediaPipeStore = defineStore('mediaPipe', () => {
     const initializeHands = async () => {
         try {
             console.log('Création de l\'instance Hands...');
-            
+
             // Vérifier que MediaPipe est chargé via le script global
             if (typeof (window as any).Hands === 'undefined') {
                 throw new Error('MediaPipe Hands n\'est pas chargé. Vérifiez que le script CDN est bien inclus.');
@@ -41,7 +41,7 @@ export const useMediaPipeStore = defineStore('mediaPipe', () => {
 
             // Utiliser la classe globale Hands
             const HandsClass = (window as any).Hands;
-            
+
             // Créer l'instance
             const newHandsInstance = new HandsClass({
                 locateFile: (file: string) => {
