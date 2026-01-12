@@ -52,8 +52,8 @@ export class AccelBaseFinger extends BaseFeatureExtractor {
                     const maxVel = fingerName === 'thumb' ? 10 : 20;
                     const minVel = -maxVel;
 
-                    const maxAng = fingerName === 'thumb' ? 1.5 : 0.1;
-                    const minAng = fingerName === 'thumb' ? -0.4 : -2;
+                    const maxAng = fingerName === 'thumb' ? 1.5 : 2.5;
+                    const minAng = fingerName === 'thumb' ? -0.4 : -0.2;
 
                     // Ajout de la feature valeur angulaire (angle en rad)
                     features.push({

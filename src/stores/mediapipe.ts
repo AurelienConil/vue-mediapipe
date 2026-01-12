@@ -4,7 +4,9 @@ import { MediaPipeProcessor } from '@/mediapipe'
 import { AccelBaseFinger } from '@/mediapipe/extractors/AccelBaseFinger'
 import { HandSizeNormalise } from '@/mediapipe/extractors/HandSizeNormalise'
 import { HandOrientationInSpace } from '@/mediapipe/extractors/HandOrientationInSpace'
-import { DistanceFinger } from '@/mediapipe/extractors/DistanceFinger'
+import { DistanceFingerTip } from '@/mediapipe/extractors/DistanceFingerTip'
+import { DistanceFingerBase } from '@/mediapipe/extractors/DistanceFingerBase'
+import { CurvatureFinger } from '@/mediapipe/extractors/CurvatureFinger'
 import { useCoreStore } from '@/stores/CoreStore'
 
 export const useMediaPipeStore = defineStore('mediaPipe', () => {
@@ -27,7 +29,9 @@ export const useMediaPipeStore = defineStore('mediaPipe', () => {
     processor.addExtractor(new AccelBaseFinger())
     processor.addExtractor(new HandSizeNormalise()) // Refait avec sécurité
     processor.addExtractor(new HandOrientationInSpace())
-    processor.addExtractor(new DistanceFinger())
+    processor.addExtractor(new DistanceFingerTip())
+    processor.addExtractor(new DistanceFingerBase())
+    processor.addExtractor(new CurvatureFinger())
 
 
     const initializeHands = async () => {

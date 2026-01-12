@@ -1,8 +1,8 @@
 import { BaseFeatureExtractor } from './BaseFeatureExtractor';
 import type { MediaPipeFrame, Feature, HandLandmarks, Finger } from '../types';
 
-export class DistanceFinger extends BaseFeatureExtractor {
-    readonly name = 'DistanceFinger';
+export class DistanceFingerTip extends BaseFeatureExtractor {
+    readonly name = 'DistanceFingerTip';
 
     // Cache local pour stocker les valeurs précédentes
     private previousValues = new Map<string, { value: number; timestamp: number }>();
@@ -49,7 +49,7 @@ export class DistanceFinger extends BaseFeatureExtractor {
                     if (dt > 0) {
                         const speed = Math.abs(distance - prevValue.value) / dt;
                         features.push({
-                            name: `thumb_to_${fingerName}_distance_speed`,
+                            name: `thumb_to_${fingerName}T_distspeed`,
                             type: 'number',
                             value: speed,
                             parents: this.name,
@@ -64,7 +64,7 @@ export class DistanceFinger extends BaseFeatureExtractor {
 
                 // Ajouter la feature de distance de base
                 features.push({
-                    name: `thumb_to_${fingerName}_distance`,
+                    name: `thumb_to_${fingerName}T_dist`,
                     type: 'number',
                     value: distance,
                     parents: this.name,

@@ -95,7 +95,7 @@ export class TapTipDetection extends BaseAnalyzer {
         let minDistance = Number.MAX_VALUE;
 
         this.fingers.forEach(finger => {
-            const distanceFeature = this.featureStore.getFeature(`thumb_to_${finger}_distance`);
+            const distanceFeature = this.featureStore.getFeature(`thumb_to_${finger}T_dist`);
             const distance = distanceFeature?.value;
 
             if (distance !== undefined && typeof distance === 'number' && distance < minDistance) {
@@ -112,7 +112,7 @@ export class TapTipDetection extends BaseAnalyzer {
      * Update buffers for a specific finger with new sensor data
      */
     private updateFingerBuffers(finger: FingerName): void {
-        const distanceFeatureName = `thumb_to_${finger}_distance_speed`;
+        const distanceFeatureName = `thumb_to_${finger}T_distspeed`;
         const angularFeatureName = `${finger}_angular_velocity`;
 
         const distanceSpeed = this.featureStore.getFeature(distanceFeatureName)?.value;
@@ -162,7 +162,7 @@ export class TapTipDetection extends BaseAnalyzer {
         const angularEnd = buffers.angularSpeed[this.bufferSize - 1];
 
         // Get current thumb to finger distance for proximity validation
-        const thumbToFingerDistanceFeature = this.featureStore.getFeature(`thumb_to_${finger}_distance`);
+        const thumbToFingerDistanceFeature = this.featureStore.getFeature(`thumb_to_${finger}T_dist`);
         const thumbToFingerDistance = thumbToFingerDistanceFeature?.value || 1.0;
 
         // Speed of the distance
@@ -172,6 +172,11 @@ export class TapTipDetection extends BaseAnalyzer {
             distancePeak > 0.5 &&
             distanceEnd < 0.3;
         // Angular speed condition
+
+        //console.log("distanceStart =", distanceStart);
+        // console.log("distancePeak =", distancePeak);
+        // console.log("distanceEnd =", distanceEnd);
+
 
         const angularCondition =
             angularStart !== undefined && angularDip !== undefined && angularEnd !== undefined &&
