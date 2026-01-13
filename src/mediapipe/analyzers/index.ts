@@ -1,3 +1,3 @@
 export { BaseAnalyzer } from './BaseAnalyzer';
-export { TapTipDetection } from './tapTipDetection';
+export { TapAllDetection } from './tapAllDetection';
 export { Analyzers } from './Analyzers';

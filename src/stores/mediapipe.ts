@@ -6,6 +6,7 @@ import { HandSizeNormalise } from '@/mediapipe/extractors/HandSizeNormalise'
 import { HandOrientationInSpace } from '@/mediapipe/extractors/HandOrientationInSpace'
 import { DistanceFingerTip } from '@/mediapipe/extractors/DistanceFingerTip'
 import { DistanceFingerBase } from '@/mediapipe/extractors/DistanceFingerBase'
+import { DistanceFingerMiddle } from '@/mediapipe/extractors/DistanceFingerMiddle'
 import { CurvatureFinger } from '@/mediapipe/extractors/CurvatureFinger'
 import { useCoreStore } from '@/stores/CoreStore'
 
@@ -31,6 +32,7 @@ export const useMediaPipeStore = defineStore('mediaPipe', () => {
     processor.addExtractor(new HandOrientationInSpace())
     processor.addExtractor(new DistanceFingerTip())
     processor.addExtractor(new DistanceFingerBase())
+    processor.addExtractor(new DistanceFingerMiddle())
     processor.addExtractor(new CurvatureFinger())
 
 

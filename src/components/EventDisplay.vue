@@ -7,8 +7,10 @@
     <div v-for="event in events" :key="event.id" class="event-display">
       <div class="event-content">
         <strong>Event:</strong> {{ event.type }}<br />
-        <span v-if="event.data">Data: {{ JSON.stringify(event.data) }}</span>
-        <span v-else>No data</span>
+        <span v-for="([key, value], index) in Object.entries(event.data)" :key="index" >
+          {{ key }}: {{ value }}<br />
+
+        </span>
         <div class="event-time">
           {{ new Date(event.timestamp).toLocaleTimeString() }}
         </div>
@@ -45,7 +47,7 @@ watch(
     newEventsList.forEach((event) => {
       setTimeout(() => {
         eventBusStore.removeEvent(event.id);
-      }, 1200);
+      }, 4000);
     });
   },
   { deep: true }
