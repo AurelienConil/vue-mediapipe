@@ -39,7 +39,8 @@ export class TapAllDetection extends BaseAnalyzer {
     private fingers: FingerName[] = ['index', 'middle', 'ring', 'pinky'];
     private fingerBuffers: Map<FingerName, FingerBuffers> = new Map();
     private lastPeakDetectedTime: number = 0;
-    private cooldownPeriod: number = 250; // 7 frames * 50ms = 350ms cooldown
+    private cooldownPeriod: number = 500; // 500ms cooldown instead of 250ms
+    private isInCooldown: boolean = false; // Additional flag to prevent multiple emissions
     private fingerPeakStates: Map<FingerName, FingerPeak> = new Map(); // Track peak state for each finger
 
 
@@ -169,16 +170,16 @@ export class TapAllDetection extends BaseAnalyzer {
         const distanceSPeak = phalanxBuffer.distanceSpeed[midIndex];
         const distanceSEnd = phalanxBuffer.distanceSpeed[this.bufferSize - 1];
 
-        // Speed of the distance
+        const maxSpeedIndex = this.findMaximumInBufferReturnIndex(phalanxBuffer.distanceSpeed);
+        const maxSpeed = phalanxBuffer.distanceSpeed[maxSpeedIndex];
+        const distanceAtMaxSpeed = phalanxBuffer.distance[maxSpeedIndex];
+
+        // Speed pattern condition: low -> peak -> low
         const distanceCondition =
             distanceSStart !== undefined && distanceSPeak !== undefined && distanceSEnd !== undefined &&
             distanceSStart < 0.1 &&
             distanceSPeak > 0.6 &&
             distanceSEnd < 0.1;
-
-        const maxSpeedIndex = this.findMaximumInBufferReturnIndex(phalanxBuffer.distanceSpeed);
-        const maxSpeed = phalanxBuffer.distanceSpeed[maxSpeedIndex];
-        const distanceAtMaxSpeed = phalanxBuffer.distance[maxSpeedIndex];
 
 
         return {
@@ -194,49 +195,189 @@ export class TapAllDetection extends BaseAnalyzer {
      * Manage peak sequence and detect maximum peak across all fingers
      */
     private deductePeakInFrame(): void {
-        // Count how many fingers have peaks this frame
-        if (Date.now() - this.lastPeakDetectedTime < this.cooldownPeriod) {
-            return; // Still in cooldown period
-        }
-
-        //First, analyze for each finger, and each phalanx who has peak, which is the smalled distance value.
-        // Return the finger and the phalanx index
-
+        // STRATEGY: "Maximum Intent" - Prioritize the finger that moved the MOST (highest speed)
+        // A tap implies intentional movement, the finger with max speed is the intended target
+        
         let maxFinger: FingerName | null = null;
         let maxPhalanxIndex: number = -1;
-        let minDistValue: number = 100; // Be careful, the maxPeak is the smalled distance value.
+        let minDistValue: number = 100;
+        let maxSpeedValue: number = 0; // Track the MAXIMUM speed to find most intentional movement
+
+        // STRATEGY: "Adaptive Global Competition" - Each phalanx with finger/phalanx-specific weights
+        // Accounts for physiological differences: pinky/ring are slower, tips need high speed
+        
+        let bestFinger: FingerName | null = null;
+        let bestPhalanxIndex: number = -1;
+        let bestScore: number = 0;
+        let bestDistance: number = 100;
+        let bestSpeed: number = 0;
+
+        // Adaptive weights based on finger difficulty and phalanx sensitivity
+        const getFingerSpeedMultiplier = (finger: FingerName): number => {
+            switch(finger) {
+                case 'index':  return 1.0;   // Easy to move fast
+                case 'middle': return 1.0;   // Easy to move fast  
+                case 'ring':   return 1.3;   // Harder to move fast -> boost score
+                case 'pinky':  return 1.5;   // Hardest to move fast -> bigger boost
+                default: return 1.0;
+            }
+        };
+
+        const getFingerGlobalMultiplier = (finger: FingerName): number => {
+            // Global score boost for harder-to-move fingers 
+            switch(finger) {
+                case 'index':  return 1.0;   // No boost needed
+                case 'middle': return 1.0;   // No boost needed  
+                case 'ring':   return 1.4;   // Global boost to compete with index/middle proximity
+                case 'pinky':  return 1.6;   // Bigger global boost for hardest finger
+                default: return 1.0;
+            }
+        };
+
+        const getPhalanxWeights = (phalanxIdx: number): {speedWeight: number, distanceWeight: number, minSpeed: number} => {
+            switch(phalanxIdx) {
+                case 0: // Base - less speed sensitive = accepts lower speeds + bonus to compensate
+                    return { speedWeight: 1.3, distanceWeight: 2.5, minSpeed: 0.4 };
+                case 1: // Middle - balanced sensitivity
+                    return { speedWeight: 1.0, distanceWeight: 2.0, minSpeed: 0.5 };
+                case 2: // Tip - VERY speed sensitive = demands high speed, no bonus needed
+                    return { speedWeight: 0.8, distanceWeight: 1.5, minSpeed: 0.8 };
+                default:
+                    return { speedWeight: 1.0, distanceWeight: 2.0, minSpeed: 0.5 };
+            }
+        };
 
         this.fingers.forEach(finger => {
             const peakState = this.fingerPeakStates.get(finger);
             if (!peakState) return;
 
-            const peakNumberSingleFinger = peakState.isPeak.filter(v => v).length;
-            if (peakNumberSingleFinger > 1) {
-                // considering there is a peak.
-                const distB = peakState.peakValuesDist[0] || 100;
-                const distM = peakState.peakValuesDist[1] || 100;
-                const distT = peakState.peakValuesDist[2] || 100;
+            const fingerSpeedMultiplier = getFingerSpeedMultiplier(finger);
+            const fingerGlobalMultiplier = getFingerGlobalMultiplier(finger);
 
-                const winningPhalanx = this.deductWinningPhalanx(finger, distB, distM, distT);
-                const winningDistValue = peakState.peakValuesDist[winningPhalanx];
+            // Evaluate each phalanx individually with adaptive weights
+            for (let phalanxIdx = 0; phalanxIdx < 3; phalanxIdx++) {
+                const hasPeak = peakState.isPeak[phalanxIdx];
+                const speed = peakState.peakValuesSpeed[phalanxIdx];
+                const distance = peakState.peakValuesDist[phalanxIdx];
 
-                if (winningDistValue && winningDistValue < minDistValue) {
-                    minDistValue = winningDistValue;
-                    maxFinger = finger;
-                    maxPhalanxIndex = winningPhalanx;
+                const weights = getPhalanxWeights(phalanxIdx);
+
+                // Apply adaptive thresholds and scoring
+                if (hasPeak && speed > weights.minSpeed && distance < 0.12) {
+                    // Calculate adaptive score with GLOBAL finger boost
+                    const adaptiveSpeedScore = weights.speedWeight * speed * fingerSpeedMultiplier;
+                    const distanceScore = distance > 0 ? weights.distanceWeight * (1/distance) : 0;
+                    const baseScore = adaptiveSpeedScore + distanceScore;
+                    const totalScore = baseScore * fingerGlobalMultiplier; // GLOBAL BOOST HERE
+
+                    // Track the best candidate globally
+                    if (totalScore > bestScore) {
+                        bestScore = totalScore;
+                        bestFinger = finger;
+                        bestPhalanxIndex = phalanxIdx;
+                        bestDistance = distance;
+                        bestSpeed = speed;
+                    }
                 }
-
-
             }
-
         });
 
+        // Update global variables for compatibility
+        maxFinger = bestFinger;
+        maxPhalanxIndex = bestPhalanxIndex;
+        minDistValue = bestDistance;
+        maxSpeedValue = bestSpeed;
 
+        // Debug: Show detailed scores of ALL candidates when a tap is detected
+        const hasAnyCandidate = maxFinger !== null;
+        if (hasAnyCandidate) {
+            console.log(`[TapAllDetection] 🏆 DETAILED CANDIDATE SCORES:`);
+            
+            // Collect and sort all candidates by score
+            const allCandidates: Array<{
+                finger: FingerName;
+                phalanx: number;
+                speed: number;
+                distance: number;
+                speedScore: number;
+                distScore: number;
+                totalScore: number;
+                isWinner: boolean;
+                qualified: string;
+            }> = [];
 
-        if (maxFinger && maxPhalanxIndex !== -1) {
-            this.emitTapEvent(maxFinger, maxPhalanxIndex, Date.now(), minDistValue || 0);
+            this.fingers.forEach(finger => {
+                const peakState = this.fingerPeakStates.get(finger);
+                if (!peakState) return;
 
+                const fingerSpeedMultiplier = getFingerSpeedMultiplier(finger);
+                const fingerGlobalMultiplier = getFingerGlobalMultiplier(finger);
+
+                for (let phalanxIdx = 0; phalanxIdx < 3; phalanxIdx++) {
+                    const hasPeak = peakState.isPeak[phalanxIdx];
+                    const speed = peakState.peakValuesSpeed[phalanxIdx];
+                    const distance = peakState.peakValuesDist[phalanxIdx];
+                    const weights = getPhalanxWeights(phalanxIdx);
+
+                    if (hasPeak && speed > 0.3 && distance < 0.15) { // Broader criteria for debug display
+                        const speedScore = weights.speedWeight * speed * fingerSpeedMultiplier;
+                        const distScore = distance > 0 ? weights.distanceWeight * (1/distance) : 0;
+                        const baseScore = speedScore + distScore;
+                        const totalScore = baseScore * fingerGlobalMultiplier; // Apply global boost
+                        
+                        const qualified = (speed > weights.minSpeed && distance < 0.12) ? '✅' : 
+                                        (speed <= weights.minSpeed) ? '❌speed' : '❌dist';
+
+                        allCandidates.push({
+                            finger,
+                            phalanx: phalanxIdx,
+                            speed,
+                            distance,
+                            speedScore,
+                            distScore,
+                            totalScore,
+                            isWinner: finger === maxFinger && phalanxIdx === maxPhalanxIndex,
+                            qualified
+                        });
+                    }
+                }
+            });
+
+            // Sort by total score (highest first)
+            allCandidates.sort((a, b) => b.totalScore - a.totalScore);
+
+            // Display all candidates with detailed breakdown
+            allCandidates.forEach(candidate => {
+                const winner = candidate.isWinner ? '🏆 WINNER' : '';
+                const globalBoost = getFingerGlobalMultiplier(candidate.finger);
+                const boostInfo = globalBoost > 1.0 ? ` (×${globalBoost})` : '';
+                console.log(`    ${candidate.finger}[${candidate.phalanx}]: ` +
+                          `speed=${candidate.speed.toFixed(3)} dist=${candidate.distance.toFixed(3)} | ` +
+                          `sScore=${candidate.speedScore.toFixed(2)} dScore=${candidate.distScore.toFixed(2)} | ` +
+                          `TOTAL=${candidate.totalScore.toFixed(2)}${boostInfo} ${candidate.qualified} ${winner}`);
+            });
+        }
+
+        // Apply final distance threshold: only emit if the closest finger is actually close enough
+        if (maxFinger && maxPhalanxIndex !== -1 && minDistValue < 0.08) {
+            // CRITICAL: Check cooldown right before emission to prevent multiple events
+            if (this.isInCooldown || Date.now() - this.lastPeakDetectedTime < this.cooldownPeriod) {
+                return; // Skip this emission due to cooldown
+            }
+            
+            // Set cooldown immediately to prevent multiple emissions
+            this.isInCooldown = true;
             this.lastPeakDetectedTime = Date.now();
+            
+            console.log(`[TapAllDetection] ✅ VALID TAP: ${maxFinger}[${maxPhalanxIndex}] distance=${minDistValue.toFixed(3)} speed=${maxSpeedValue.toFixed(3)}`);
+            this.emitTapEvent(maxFinger, maxPhalanxIndex, Date.now(), minDistValue || 0);
+            
+            // Reset cooldown after delay
+            setTimeout(() => {
+                this.isInCooldown = false;
+            }, this.cooldownPeriod);
+        } else if (maxFinger && minDistValue >= 0.08) {
+            console.log(`[TapAllDetection] ❌ Peak detected on ${maxFinger} but too far (${minDistValue.toFixed(3)}) to be considered a touch`);
         }
 
     }
@@ -264,18 +405,31 @@ export class TapAllDetection extends BaseAnalyzer {
         return buffer.indexOf(Math.max(...buffer));
     }
 
-    private deductWinningPhalanx(finger: FingerName, distB: number, distM: number, distT: number) {
+    private deductWinningPhalanx(finger: FingerName, distB: number, distM: number, distT: number, isPeakArray: boolean[]) {
         // When a peak in considered on the finger, we need to deduce which phalanx is the winning one.
-
-        if (distT <= distM && distM <= distB) {
-            return 2; // Tip
-        } else if (distB <= distM && distM <= distT) {
-            return 0; // Middle
-        } else {
-            return 1; // Base
+        // Only consider phalanges that actually have peaks
+        
+        const candidates = [];
+        if (isPeakArray[0]) candidates.push({ index: 0, distance: distB }); // Base
+        if (isPeakArray[1]) candidates.push({ index: 1, distance: distM }); // Middle
+        if (isPeakArray[2]) candidates.push({ index: 2, distance: distT }); // Tip
+        
+        // Return the phalanx with the smallest distance among those with peaks
+        if (candidates.length > 0) {
+            const winner = candidates.reduce((min, current) => 
+                current.distance < min.distance ? current : min
+            );
+            return winner.index;
         }
-
-
+        
+        // Fallback: return the phalanx with smallest distance overall
+        if (distT <= distM && distT <= distB) {
+            return 2; // Tip
+        } else if (distB <= distM && distB <= distT) {
+            return 0; // Base
+        } else {
+            return 1; // Middle
+        }
     }
 
 
