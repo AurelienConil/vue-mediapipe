@@ -3,6 +3,7 @@ import { TapTipDetection } from './tapTipDetection';
 import { TapBaseDetection } from './tapBaseDetection';
 import { TapAllDetection } from './tapAllDetection';
 import { TapPhalanxDetection } from './tapPhalanxDetection';
+import { SwipeDetection } from './swipeDetection';
 import type { useFeatureStore } from '../../stores/FeatureStore';
 
 type FeatureStore = ReturnType<typeof useFeatureStore>;
@@ -32,6 +33,9 @@ export class Analyzers {
         
         // Nouveau analyzer avec architecture refactorisée
         this.analyzers.push(new TapPhalanxDetection(featureStore));
+        
+        // Swipe detection analyzer
+        this.analyzers.push(new SwipeDetection(featureStore));
         // ...ajoute d'autres analyzers ici si besoin
     }
 

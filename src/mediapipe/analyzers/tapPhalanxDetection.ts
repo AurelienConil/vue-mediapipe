@@ -177,12 +177,12 @@ class Finger {
 
         // Debug: Log detected peaks
         const detectedPeaks = phalanxResults.filter(result => result.hasPeak);
-        if (detectedPeaks.length > 0) {
-            console.log(`[${this.name}] 🔍 DETECTED PEAKS:`);
-            detectedPeaks.forEach(peak => {
-                console.log(`    ${peak.type}: speed=${peak.maxSpeed.toFixed(3)} dist=${peak.distanceAtMaxSpeed.toFixed(3)} conf=${peak.confidence.toFixed(2)}`);
-            });
-        }
+        // if (detectedPeaks.length > 0) {
+        //     console.log(`[${this.name}] 🔍 DETECTED PEAKS:`);
+        //     detectedPeaks.forEach(peak => {
+        //         console.log(`    ${peak.type}: speed=${peak.maxSpeed.toFixed(3)} dist=${peak.distanceAtMaxSpeed.toFixed(3)} conf=${peak.confidence.toFixed(2)}`);
+        //     });
+        // }
 
         if (validResults.length === 0) {
             return { finger: this.name, bestPhalanx: null, score: 0 };
@@ -197,7 +197,7 @@ class Finger {
 
         const weightedScore = this.calculateWeightedScore(bestPhalanx) * this.getFingerMultiplier();
 
-        console.log(`[${this.name}] ✅ BEST CANDIDATE: ${bestPhalanx.type} score=${weightedScore.toFixed(2)}`);
+        //console.log(`[${this.name}] ✅ BEST CANDIDATE: ${bestPhalanx.type} score=${weightedScore.toFixed(2)}`);
 
         return {
             finger: this.name,
@@ -309,19 +309,19 @@ export class TapPhalanxDetection extends BaseAnalyzer {
     private selectBestCandidate(results: FingerAnalysisResult[]): FingerAnalysisResult | null {
         // Debug: Log all candidates before filtering
         const candidatesWithPeaks = results.filter(result => result.bestPhalanx);
-        if (candidatesWithPeaks.length > 0) {
-            console.log(`[TapPhalanxDetection] 📋 ALL CANDIDATES:`);
-            candidatesWithPeaks.forEach(candidate => {
-                const p = candidate.bestPhalanx!;
-                console.log(`    ${candidate.finger}[${p.type}]: dist=${p.distanceAtMaxSpeed.toFixed(3)} score=${candidate.score.toFixed(2)}`);
-            });
-        }
+        // if (candidatesWithPeaks.length > 0) {
+        //     console.log(`[TapPhalanxDetection] 📋 ALL CANDIDATES:`);
+        //     candidatesWithPeaks.forEach(candidate => {
+        //         const p = candidate.bestPhalanx!;
+        //         console.log(`    ${candidate.finger}[${p.type}]: dist=${p.distanceAtMaxSpeed.toFixed(3)} score=${candidate.score.toFixed(2)}`);
+        //     });
+        // }
 
         // Only filter on existence of bestPhalanx (hasPeak = true) - no additional thresholds
         const validCandidates = results.filter(result => result.bestPhalanx);
 
         if (validCandidates.length === 0) {
-            console.log(`[TapPhalanxDetection] ❌ NO PEAKS DETECTED`);
+            //console.log(`[TapPhalanxDetection] ❌ NO PEAKS DETECTED`);
             return null;
         }
 
@@ -329,7 +329,7 @@ export class TapPhalanxDetection extends BaseAnalyzer {
         validCandidates.sort((a, b) => b.score - a.score);
         
         // Log candidates for debugging
-        this.logCandidates(validCandidates);
+        //this.logCandidates(validCandidates);
         
         return validCandidates[0];
     }
