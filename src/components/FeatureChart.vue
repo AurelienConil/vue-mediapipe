@@ -68,9 +68,9 @@ const chartData = ref<ChartData<"line">>({
       borderColor: getFeatureColor(props.feature),
       backgroundColor: getFeatureColor(props.feature) + "20", // 20% opacity
       borderWidth: 1,
-      pointRadius: 0,
-      pointHoverRadius: 3,
-      tension: 0.1,
+      pointRadius: 3,
+      pointHoverRadius: 5,
+      tension: 0,
       fill: true,
     },
   ],
@@ -186,9 +186,11 @@ function initChart() {
       elements: {
         line: {
           borderWidth: 1,
+          tension: 0,
         },
         point: {
-          radius: 0,
+          radius: 3,
+          hoverRadius: 5,
         },
       },
     },

@@ -120,7 +120,7 @@ onMounted(async () => {
   console.log("Composant monté, initialisation de MediaPipe...");
   
   // Écouter les événements de détection de pic sur les doigts
-  eventBus.on('max_finger_peak_detected', peakDetectionHandler);
+  eventBus.on('phalanx_tap_detected', peakDetectionHandler);
   
   //store the promise of initialization
   const initializationPromise = mediaPipeStore.initializeHands();

@@ -2,6 +2,7 @@ import { eventBus, eventHistory } from '../../stores/eventBusStore';
 import { TapTipDetection } from './tapTipDetection';
 import { TapBaseDetection } from './tapBaseDetection';
 import { TapAllDetection } from './tapAllDetection';
+import { TapPhalanxDetection } from './tapPhalanxDetection';
 import type { useFeatureStore } from '../../stores/FeatureStore';
 
 type FeatureStore = ReturnType<typeof useFeatureStore>;
@@ -25,7 +26,12 @@ export class Analyzers {
         console.log('Initializing Analyzers...');
         //this.analyzers.push(new TapTipDetection(featureStore));
         //this.analyzers.push(new TapBaseDetection(featureStore));
-        this.analyzers.push(new TapAllDetection(featureStore));
+        
+        // Ancien analyzer pour comparaison
+        //this.analyzers.push(new TapAllDetection(featureStore));
+        
+        // Nouveau analyzer avec architecture refactorisée
+        this.analyzers.push(new TapPhalanxDetection(featureStore));
         // ...ajoute d'autres analyzers ici si besoin
     }
 
