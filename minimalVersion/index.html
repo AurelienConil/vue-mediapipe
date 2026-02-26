@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="fr">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Offline MediaPipe Hands (minimal)</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+    }
+
+    #wrap {
+      display: grid;
+      place-items: center;
+      height: 100vh;
+    }
+
+    canvas {
+      max-width: 100vw;
+      max-height: 100vh;
+    }
+
+    video {
+      display: none;
+    }
+  </style>
+  <script src="./node_modules/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="./node_modules/@mediapipe/drawing_utils/drawing_utils.js"></script>
+  <script src="./node_modules/@mediapipe/hands/hands.js"></script>
+</head>
+
+<body>
+  <div id="wrap">
+    <video id="video" playsinline></video>
+    <canvas id="canvas"></canvas>
+  </div>
+  <script type="module" src="./main.js"></script>
+</body>
+
+</html>
