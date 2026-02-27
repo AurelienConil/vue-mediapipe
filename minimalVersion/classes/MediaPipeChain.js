@@ -43,27 +43,22 @@ export class MediaPipeChain {
       // 3. Afficher landmarks bruts
       this.landmarksRenderer.render(detectionResults.multiHandLandmarks);
 
+      // 3b. Afficher les feedbacks actifs (superposé)
+      this.landmarksRenderer.renderActiveFeedbacks(detectionResults.multiHandLandmarks);
+
       // 4. Analyser les gestes via la chaîne
       const analyzedData = this.gestureAnalysis.analyze(detectionResults);
 
-      const touchEvent = analyzedData?.analysis?.touchEvent;
-      if (touchEvent) {
-        console.log("[MediaPipeChain] touchEvent:", touchEvent);
+      const touchEvent = analyzedData.event
+      if (touchEvent && Object.keys(touchEvent).length > 0) {
+      // console.log("[MediaPipeChain] touchEvent:", touchEvent);
       }
 
-      // 5. Extraire et appliquer le feedback visuel
-      // const visualFeedback =
-      //   this.gestureAnalysis.extractVisualFeedback(analyzedData);
+      if (analyzedData.event && analyzedData.state) {
+        this.landmarksRenderer.applyFeedback(analyzedData.state, [analyzedData.event], analyzedData.hasPeak);
+      }
 
-      // if (
-      //   visualFeedback.highlightedPoints.size > 0 &&
-      //   detectionResults.multiHandLandmarks
-      // ) {
-      //   this.landmarksRenderer.applyFeedback(
-      //     detectionResults.multiHandLandmarks,
-      //     visualFeedback
-      //   );
-      // }
+
     });
   }
 

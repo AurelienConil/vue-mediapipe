@@ -1,17 +1,4 @@
-import { BaseGestureAnalyzer } from "./BaseGestureAnalyzer.js";
-
-/**
- * DATA CONTRACT (at end of handle):
- * - data.analysis.touches: touch events detected on the current frame
- * - data.analysis.distancesAndVelocities: distance features from FeatureExtractingAnalyzer
- * - data.analysis.swipes: current swipe state(s) detected in this frame
- * - data.analysis.swipeEvent: one-frame swipe event (finger_swipe_detected or swipe_ended)
- */
-
-/**
- * SwipeAnalyzer - Detects swipe movement after a touch event
- * Uses touch events and augments data with swipe info when detected.
- */
+// Classe SwipeBuffer pour gérer les buffers de distances
 class SwipeBuffer {
   constructor(finger, phalanx, bufferSize = 18) {
     this.bufferSize = bufferSize;
@@ -20,7 +7,10 @@ class SwipeBuffer {
   }
 
   buildFeatureName(finger, phalanx) {
-    const phalanxName = phalanx === "base" ? "mcp" : phalanx === "middle" ? "pip" : "tip";
+    let phalanxName;
+    if (phalanx === 1 || phalanx === "base") phalanxName = "base";
+    else if (phalanx === 2 || phalanx === "middle") phalanxName = "middle";
+    else phalanxName = "tip";
     return `thumb_to_${finger}_${phalanxName}_dist`;
   }
 
@@ -38,12 +28,10 @@ class SwipeBuffer {
     if (n < 3) {
       return 0;
     }
-
     let sumX = 0;
     let sumY = 0;
     let sumXY = 0;
     let sumX2 = 0;
-
     for (let i = 0; i < n; i++) {
       const distance = this.distanceBuffer[i];
       if (distance !== undefined) {
@@ -53,12 +41,10 @@ class SwipeBuffer {
         sumX2 += i * i;
       }
     }
-
     const denom = n * sumX2 - sumX * sumX;
     if (denom === 0) {
       return 0;
     }
-
     const slope = (n * sumXY - sumX * sumY) / denom;
     return isNaN(slope) ? 0 : slope;
   }
@@ -76,12 +62,28 @@ class SwipeBuffer {
   }
 }
 
+
+import { BaseGestureAnalyzer } from "./BaseGestureAnalyzer.js";
+
+/**
+ * DATA CONTRACT (at end of handle):
+ * - data.analysis.touches: touch events detected on the current frame
+ * - data.analysis.distancesAndVelocities: distance features from FeatureExtractingAnalyzer
+ * - data.analysis.swipes: current swipe state(s) detected in this frame
+ * - data.analysis.swipeEvent: one-frame swipe event (finger_swipe_detected or swipe_ended)
+ */
+
+/**
+ * SwipeAnalyzer - Detects swipe movement after a touch event
+ * Uses touch events and augments data with swipe info when detected.
+ */
 class SwipeFinger {
   constructor(name, bufferSize = 18) {
     this.name = name;
-    this.baseBuffer = new SwipeBuffer(name, "base", bufferSize);
-    this.middleBuffer = new SwipeBuffer(name, "middle", bufferSize);
-    this.tipBuffer = new SwipeBuffer(name, "tip", bufferSize);
+    // Harmonisation : base=1, middle=2, tip=3
+    this.baseBuffer = new SwipeBuffer(name, 1, bufferSize);
+    this.middleBuffer = new SwipeBuffer(name, 2, bufferSize);
+    this.tipBuffer = new SwipeBuffer(name, 3, bufferSize);
   }
 
   updateBuffers(distancesAndVelocities) {
@@ -191,6 +193,7 @@ export class SwipeAnalyzer extends BaseGestureAnalyzer {
     this.monitoringTimeout = 6000;
     this.miniSwipeInterval = 100;
     this.minConfidence = 0.004;
+    this.phalanxNames = ["base", "middle", "tip"];
   }
 
   handle(data) {
@@ -201,10 +204,12 @@ export class SwipeAnalyzer extends BaseGestureAnalyzer {
     data.analysis.swipes = [];
     data.analysis.swipeEvent = null;
 
-    const touches = Array.isArray(data.analysis.touches) ? data.analysis.touches : [];
+
+
+
     if (this.state === "IDLE") {
-      if (touches.length > 0) {
-        this.startMonitoring(touches[0]);
+      if (data.state && data.state === "touch" && data.event) {
+        this.startMonitoring(data.event);
       } else {
         return data;
       }
@@ -229,27 +234,14 @@ export class SwipeAnalyzer extends BaseGestureAnalyzer {
     this.swipeFinger.updateBuffers(data.analysis.distancesAndVelocities);
 
     const currentDistances = this.swipeFinger.getCurrentDistances();
-    const maxDistance = Math.max(currentDistances.base, currentDistances.middle, currentDistances.tip);
+    //const maxDistance = Math.max(currentDistances.base, currentDistances.middle, currentDistances.tip);
+    //get the min value instead. If one phalanx is close, that's a good indication.
+    const maxDistance = Math.min(currentDistances.base, currentDistances.middle, currentDistances.tip);
     const exitDistanceThreshold = 0.16;
 
-    if (maxDistance > exitDistanceThreshold) {
-      data.analysis.swipeEvent = this.buildSwipeEvent("swipe_ended", {
-        reason: "distance_exit",
-        finger: this.monitoringContext.finger,
-        phalanx: this.monitoringContext.phalanx,
-        confidence: 0.9,
-        distances: currentDistances,
-        maxDistance,
-        threshold: exitDistanceThreshold,
-        duration: now - this.monitoringStartTime,
-        swipeCount: this.monitoringContext.swipeCount,
-        totalDistance: this.monitoringContext.totalSwipeDistance,
-        finalDirection: this.monitoringContext.currentDirection,
-      });
-
+    // Si un release est détecté (state == 'release'), on arrête le swipe
+    if (data.state === 'release') {
       this.resetToIdle();
-      console.log("[SwipeAnalyzer] Swipe ended due to distance exit:", data.analysis.swipeEvent);
-
       return data;
     }
 
@@ -265,11 +257,8 @@ export class SwipeAnalyzer extends BaseGestureAnalyzer {
 
       const swipeState = this.handleSwipeDetection(analysis, now);
       if (swipeState) {
-        data.analysis.swipes.push(swipeState);
-        if (!data.analysis.swipeEvent) {
-          data.analysis.swipeEvent = this.buildSwipeEvent("finger_swipe_detected", swipeState);
-          console.log("[SwipeAnalyzer] Swipe detected:", data.analysis.swipeEvent);
-        }
+        data.event = swipeState;
+        console.log("swipe detected:", swipeState);
       }
     }
 
@@ -284,8 +273,8 @@ export class SwipeAnalyzer extends BaseGestureAnalyzer {
     this.state = "MONITORING";
     this.monitoringContext = {
       finger: touchData.finger,
+      // Harmonisation : phalanx doit être 1,2,3 (tip=3)
       phalanx: touchData.phalanx,
-      startTime: Date.now(),
       lastSwipeTime: 0,
       swipeCount: 0,
       totalSwipeDistance: 0,
@@ -294,6 +283,15 @@ export class SwipeAnalyzer extends BaseGestureAnalyzer {
     };
     this.swipeFinger = new SwipeFinger(touchData.finger);
     this.monitoringStartTime = Date.now();
+  }
+
+  getPhalanxIndex(phalanx) {
+    if (phalanx === "base") return 1;
+    if (phalanx === "middle") return 2;
+    if (phalanx === "tip") return 3;
+
+    console.warn("Unknown phalanx:", phalanx);
+    return null;
   }
 
   handleSwipeDetection(analysis, now) {
@@ -312,6 +310,7 @@ export class SwipeAnalyzer extends BaseGestureAnalyzer {
     const distances = this.swipeFinger.getCurrentDistances();
 
     return {
+      type: "swipe",
       finger: this.monitoringContext.finger,
       phalanx: this.monitoringContext.phalanx,
       direction: analysis.direction,
@@ -327,12 +326,13 @@ export class SwipeAnalyzer extends BaseGestureAnalyzer {
       },
       originalTouch: this.monitoringContext.touchData,
       isMiniSwipe: true,
+      expiresAt: now + 500, // feedback valable 0.5 seconde
     };
   }
 
   handleExitDetection(analysis, now) {
     const distances = this.swipeFinger.getCurrentDistances();
-    return this.buildSwipeEvent("swipe_ended", {
+    return {
       reason: "exit",
       finger: this.monitoringContext.finger,
       phalanx: this.monitoringContext.phalanx,
@@ -347,16 +347,9 @@ export class SwipeAnalyzer extends BaseGestureAnalyzer {
       swipeCount: this.monitoringContext.swipeCount,
       totalDistance: this.monitoringContext.totalSwipeDistance,
       finalDirection: this.monitoringContext.currentDirection,
-    });
-  }
-
-  buildSwipeEvent(type, data) {
-    return {
-      type,
-      timestamp: Date.now(),
-      data,
     };
   }
+
 
   resetToIdle() {
     this.state = "IDLE";

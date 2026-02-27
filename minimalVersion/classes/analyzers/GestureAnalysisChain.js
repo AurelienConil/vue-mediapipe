@@ -2,6 +2,7 @@ import { PreProcessingAnalyzer } from "./PreProcessingAnalyzer.js";
 import { FeatureExtractingAnalyzer } from "./FeatureExtractingAnalyzer.js";
 import { TouchAnalyzer } from "./TouchAnalyzer.js";
 import { SwipeAnalyzer } from "./SwipeAnalyzer.js";
+import { ReleaseAnalyzer } from "./ReleaseAnalyzer.js";
 
 /**
  * GestureAnalysisChain - Orchestre la chaîne complète d'analyse des gestes
@@ -19,12 +20,14 @@ export class GestureAnalysisChain {
     const preProcessor = new PreProcessingAnalyzer();
     const featureExtractor = new FeatureExtractingAnalyzer();
     const touchAnalyzer = new TouchAnalyzer();
+    const releaseAnalyzer = new ReleaseAnalyzer();
     const swipeAnalyzer = new SwipeAnalyzer();
 
     // Chaîner les analyseurs
     preProcessor
       .setNext(featureExtractor)
       .setNext(touchAnalyzer)
+      .setNext(releaseAnalyzer)
       .setNext(swipeAnalyzer);
 
     return preProcessor;
@@ -39,4 +42,6 @@ export class GestureAnalysisChain {
     // Passer les données à travers la chaîne d'analyse
     return this.analysisChain.analyze(detectionResults);
   }
+
+  
 }

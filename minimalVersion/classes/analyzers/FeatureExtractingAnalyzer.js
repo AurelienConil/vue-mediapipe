@@ -8,13 +8,14 @@ export class FeatureExtractingAnalyzer extends BaseGestureAnalyzer {
   constructor() {
     super();
 
-    // Mapping des landmarks pour chaque doigt (MCP, PIP, TIP)
+    // Mapping des landmarks pour chaque doigt (base, middle, tip) : indices 1,2,3
+    // MCP (phalange 0) ignorée !
     this.FINGER_LANDMARKS = {
-      thumb: { mcp: 2, pip: 3, tip: 4 },
-      index: { mcp: 5, pip: 6, tip: 8 },
-      middle: { mcp: 9, pip: 10, tip: 12 },
-      ring: { mcp: 13, pip: 14, tip: 16 },
-      pinky: { mcp: 17, pip: 18, tip: 20 }
+      thumb: { base: 2, middle: 3, tip: 4 },
+      index: { base: 6, middle: 7, tip: 8 },
+      middle: { base: 10, middle: 11, tip: 12 },
+      ring: { base: 14, middle: 15, tip: 16 },
+      pinky: { base: 18, middle: 19, tip: 20 }
     };
 
     // Cache pour stocker les valeurs précédentes pour le calcul de vélocité
@@ -52,26 +53,23 @@ export class FeatureExtractingAnalyzer extends BaseGestureAnalyzer {
       return features;
     }
 
-    // 1. Distances inter-doigts: pouce vers chaque phalange des autres doigts
+    // 1. Distances inter-doigts: pouce vers chaque phalange (base, middle, tip) des autres doigts
     const thumbTip = hand.landmarks[this.FINGER_LANDMARKS.thumb.tip];
 
     for (const [fingerName, landmarks] of Object.entries(this.FINGER_LANDMARKS)) {
       if (fingerName === 'thumb') continue;
 
-      // Distance du TIP du pouce vers chaque phalange
+      // Distance du TIP du pouce vers chaque phalange (base, middle, tip)
       for (const [phalangeName, landmarkIdx] of Object.entries(landmarks)) {
+        // phalangeName: base, middle, tip (indices 1,2,3)
         const fingerLandmark = hand.landmarks[landmarkIdx];
-
         if (!this.isValidPoint(thumbTip) || !this.isValidPoint(fingerLandmark)) {
           continue;
         }
-
         const distance = this.calculateDistance3D(thumbTip, fingerLandmark);
-
         // Calcul de la vélocité de la distance
         const featureKey = `thumb_to_${fingerName}_${phalangeName}_dist`;
         const prevValue = this.previousValues.get(featureKey);
-
         if (prevValue && prevValue.timestamp !== undefined) {
           const dt = (hand.timestamp - prevValue.timestamp) / 1000; // en secondes
           if (dt > 0) {
@@ -84,7 +82,6 @@ export class FeatureExtractingAnalyzer extends BaseGestureAnalyzer {
             });
           }
         }
-
         // Ajouter la feature de distance
         features.push({
           name: `thumb_to_${fingerName}_${phalangeName}_dist`,
@@ -92,7 +89,6 @@ export class FeatureExtractingAnalyzer extends BaseGestureAnalyzer {
           timestamp: hand.timestamp,
           handIndex: hand.handIndex,
         });
-
         // Mettre à jour le cache
         this.previousValues.set(featureKey, {
           value: distance,
@@ -101,70 +97,64 @@ export class FeatureExtractingAnalyzer extends BaseGestureAnalyzer {
       }
     }
 
-    // 2. Distances intra-doigt: mesure de flexion pour chaque doigt
+    // 2. Distances intra-doigt: mesure de flexion pour chaque doigt (base, middle, tip)
     for (const [fingerName, landmarks] of Object.entries(this.FINGER_LANDMARKS)) {
-      const mcpLandmark = hand.landmarks[landmarks.mcp];
-      const pipLandmark = hand.landmarks[landmarks.pip];
+      const baseLandmark = hand.landmarks[landmarks.base];
+      const middleLandmark = hand.landmarks[landmarks.middle];
       const tipLandmark = hand.landmarks[landmarks.tip];
 
-      // Distance MCP-PIP (phalange basse)
-      if (this.isValidPoint(mcpLandmark) && this.isValidPoint(pipLandmark)) {
-        const distance = this.calculateDistance3D(mcpLandmark, pipLandmark);
-        const featureKey = `${fingerName}_mcp_pip_dist`;
+      // Distance base-middle (phalange basse)
+      if (this.isValidPoint(baseLandmark) && this.isValidPoint(middleLandmark)) {
+        const distance = this.calculateDistance3D(baseLandmark, middleLandmark);
+        const featureKey = `${fingerName}_base_middle_dist`;
         const prevValue = this.previousValues.get(featureKey);
-
         if (prevValue && prevValue.timestamp !== undefined) {
           const dt = (hand.timestamp - prevValue.timestamp) / 1000;
           if (dt > 0) {
             const distanceSpeed = Math.abs(distance - prevValue.value) / dt;
             features.push({
-              name: `${fingerName}_mcp_pip_distspeed`,
+              name: `${fingerName}_base_middle_distspeed`,
               value: distanceSpeed,
               timestamp: hand.timestamp,
               handIndex: hand.handIndex,
             });
           }
         }
-
         features.push({
-          name: `${fingerName}_mcp_pip_dist`,
+          name: `${fingerName}_base_middle_dist`,
           value: distance,
           timestamp: hand.timestamp,
           handIndex: hand.handIndex,
         });
-
         this.previousValues.set(featureKey, {
           value: distance,
           timestamp: hand.timestamp
         });
       }
 
-      // Distance PIP-TIP (phalange du milieu)
-      if (this.isValidPoint(pipLandmark) && this.isValidPoint(tipLandmark)) {
-        const distance = this.calculateDistance3D(pipLandmark, tipLandmark);
-        const featureKey = `${fingerName}_pip_tip_dist`;
+      // Distance middle-tip (phalange du milieu)
+      if (this.isValidPoint(middleLandmark) && this.isValidPoint(tipLandmark)) {
+        const distance = this.calculateDistance3D(middleLandmark, tipLandmark);
+        const featureKey = `${fingerName}_middle_tip_dist`;
         const prevValue = this.previousValues.get(featureKey);
-
         if (prevValue && prevValue.timestamp !== undefined) {
           const dt = (hand.timestamp - prevValue.timestamp) / 1000;
           if (dt > 0) {
             const distanceSpeed = Math.abs(distance - prevValue.value) / dt;
             features.push({
-              name: `${fingerName}_pip_tip_distspeed`,
+              name: `${fingerName}_middle_tip_distspeed`,
               value: distanceSpeed,
               timestamp: hand.timestamp,
               handIndex: hand.handIndex,
             });
           }
         }
-
         features.push({
-          name: `${fingerName}_pip_tip_dist`,
+          name: `${fingerName}_middle_tip_dist`,
           value: distance,
           timestamp: hand.timestamp,
           handIndex: hand.handIndex,
         });
-
         this.previousValues.set(featureKey, {
           value: distance,
           timestamp: hand.timestamp
